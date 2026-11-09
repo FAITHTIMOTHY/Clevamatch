@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `payments_workspace_dedup_unique` ON `payments` (`workspace_id`,`payer_name`,`amount_cents`,`currency`,`reference`,`received_at`);

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+dist-server/
+local.db
+local.db-shm
+local.db-wal
+.env
+.env.*
+!.env.example
