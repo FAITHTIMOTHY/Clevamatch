@@ -653,7 +653,7 @@ app.get("/api/export/invoices.csv", async (request, response) => {
     return `"${safeField.replace(/"/g, '""')}"`;
   }).join(",")).join("\r\n");
   response.setHeader("Content-Type", "text/csv; charset=utf-8");
-  response.setHeader("Content-Disposition", 'attachment; filename="cleva-match-invoices.csv"');
+  response.setHeader("Content-Disposition", 'attachment; filename="settleme-invoices.csv"');
   response.send(csv);
 });
 
@@ -694,7 +694,7 @@ export default app;
 if (!process.env.VERCEL) {
   const host = process.env.HOST || (isProduction ? "0.0.0.0" : "127.0.0.1");
   const server = app.listen(port, host, () => {
-    console.log(`Cleva Match is running at http://${host}:${port}`);
+    console.log(`SettleMe is running at http://${host}:${port}`);
   });
 
   const sessionCleanup = setInterval(() => {

@@ -15,15 +15,15 @@ interface ApiMe {
 
 function LandingPage({ onGetStarted, onSignIn }: { onGetStarted: () => void; onSignIn: () => void }) {
   return <main className="landing-page">
-    <header className="landing-nav"><a className="brand" href="#"><span className="brand-mark">c</span><span className="brand-name">cleva<span>match</span></span></a><nav><a href="#how-it-works">How it works</a><a href="#why-cleva">Why Cleva Match</a></nav><div><button className="landing-signin" onClick={onSignIn}>Sign in</button><button className="primary-button" onClick={onGetStarted}>Get started <span>→</span></button></div></header>
+    <header className="landing-nav"><a className="brand" href="#"><span className="brand-mark">s</span><span className="brand-name">Settle<span>Me</span></span></a><nav><a href="#how-it-works">How it works</a><a href="#why-settleme">Why SettleMe</a></nav><div><button className="landing-signin" onClick={onSignIn}>Sign in</button><button className="primary-button" onClick={onGetStarted}>Get started <span>→</span></button></div></header>
     <section className="landing-hero">
       <div className="hero-copy"><h1>Invoice your clients.<br /><span>Get paid, simply.</span></h1><p>Create a professional invoice, share one link, and let clients pay through secure Bachs checkout without leaving your page. Payment status updates when Bachs confirms it.</p><div className="hero-actions"><button className="primary-button" onClick={onGetStarted}>Create your invoice workspace <span>→</span></button><button className="hero-secondary" onClick={() => document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" })}>See how it works <span>↓</span></button></div><div className="hero-trust"><span>✓</span> Shareable invoice links <span className="trust-dot">·</span> Embedded Bachs checkout <span className="trust-dot">·</span> Automatic payment confirmation</div></div>
       <div className="hero-art" aria-label="Preview of invoices and payment status"><div className="art-sun" /><div className="art-card"><div className="art-window"><span /><span /><span /></div><div className="art-card-header"><div><small>MONDAY, NOVEMBER 9</small><strong>Your invoices, sorted.</strong></div><span className="art-check">✓</span></div><div className="art-metric-row"><div className="art-metric"><small>PAID THIS MONTH</small><strong>$8,140</strong></div><div className="art-metric"><small>INVOICES PAID</small><strong>4 <span>/ 6</span></strong></div></div><div className="art-invoice-head"><span>INVOICE</span><span>AMOUNT</span><span>STATUS</span></div><div className="art-invoice-row"><div className="art-client"><span className="art-avatar av-one">NS</span><span><b>Northstar Studio</b><small>INV-2048</small></span></div><b>$2,400</b><span className="art-paid">✓ Paid</span></div><div className="art-invoice-row"><div className="art-client"><span className="art-avatar av-two">BC</span><span><b>Bloom Creative</b><small>INV-2051</small></span></div><b>$1,850</b><span className="art-suggested">↗ Sent</span></div><div className="art-invoice-row"><div className="art-client"><span className="art-avatar av-three">OL</span><span><b>Orbit Labs</b><small>INV-2054</small></span></div><b>$3,200</b><span className="art-open">◷ Awaiting</span></div><div className="art-floating"><span>✓</span><div><b>Payment confirmed</b><small>Your invoice status is up to date.</small></div></div></div><div className="art-decoration deco-star">✳</div><div className="art-decoration deco-flower">✿</div></div>
     </section>
     <section className="landing-proof"><span>INVOICING THAT FITS YOUR INDEPENDENT WORK</span><div><b>Freelancers</b><i>·</i><b>Consultants</b><i>·</i><b>Small studios</b><i>·</i><b>Global clients</b></div></section>
     <section className="landing-how" id="how-it-works"><div className="section-intro"><p className="eyebrow">From draft to paid</p><h2>Get your time<br />back from <span>admin.</span></h2><p>One simple flow for professional invoices, client checkout, and knowing when the money arrives.</p></div><div className="how-cards"><article><div className="how-icon icon-import">▤</div><span className="step-number">01</span><h3>Create your invoice</h3><p>Add your client, amount, and due date. Keep every invoice organized in your workspace.</p></article><article><div className="how-icon icon-match">↗</div><span className="step-number">02</span><h3>Share the payment link</h3><p>Your client gets a private invoice page with the amount due and a clear way to pay.</p></article><article><div className="how-icon icon-review">✓</div><span className="step-number">03</span><h3>Know when it’s paid</h3><p>Bachs checkout opens on the invoice page. Verified payment confirmation updates your dashboard.</p></article></div></section>
-    <section className="landing-feature" id="why-cleva"><div className="feature-mark">c</div><div><p className="eyebrow">The nice-and-simple promise</p><h2>One invoice link.<br />From sent to paid.</h2><p>Give clients a straightforward way to pay while you keep invoice details and payment status together in one workspace.</p><button className="primary-button" onClick={onGetStarted}>Create your workspace <span>→</span></button></div><ul><li><span>✓</span> Professional freelancer invoices</li><li><span>✓</span> Shareable client payment pages</li><li><span>✓</span> Bachs checkout stays on-page</li><li><span>✓</span> 3.5% platform fee on paid invoices</li><li><span>✓</span> Bachs processing fees are separate</li></ul></section>
-    <footer className="landing-footer"><a className="brand" href="#"><span className="brand-mark">c</span><span className="brand-name">cleva<span>match</span></span></a><span>Client invoicing and embedded payment collection for freelancers.</span><button onClick={onSignIn}>Already have an account? Sign in</button></footer>
+    <section className="landing-feature" id="why-settleme"><div className="feature-mark">s</div><div><p className="eyebrow">The nice-and-simple promise</p><h2>One invoice link.<br />From sent to paid.</h2><p>Give clients a straightforward way to pay while you keep invoice details and payment status together in one workspace.</p><button className="primary-button" onClick={onGetStarted}>Create your workspace <span>→</span></button></div><ul><li><span>✓</span> Professional freelancer invoices</li><li><span>✓</span> Shareable client payment pages</li><li><span>✓</span> Bachs checkout stays on-page</li><li><span>✓</span> 3.5% platform fee on paid invoices</li><li><span>✓</span> Bachs processing fees are separate</li></ul></section>
+    <footer className="landing-footer"><a className="brand" href="#"><span className="brand-mark">s</span><span className="brand-name">Settle<span>Me</span></span></a><span>Client invoicing and embedded payment collection for freelancers.</span><button onClick={onSignIn}>Already have an account? Sign in</button></footer>
   </main>;
 }
 
@@ -165,7 +165,7 @@ function AuthScreen({ onAuthenticated, initialMode, onBack }: { onAuthenticated:
   return (
     <main className="auth-page">
       <div className="auth-visual">
-        <div className="brand auth-brand"><span className="brand-mark">c</span><span className="brand-name">cleva<span>match</span></span></div>
+        <div className="brand auth-brand"><span className="brand-mark">s</span><span className="brand-name">Settle<span>Me</span></span></div>
         <div className="auth-hero-copy">
           <h1>Invoice clients.<br />Get paid.</h1>
           <p>Create a clear invoice, share a private payment link, and let clients check out securely with Bachs without leaving your invoice page.</p>
@@ -174,7 +174,7 @@ function AuthScreen({ onAuthenticated, initialMode, onBack }: { onAuthenticated:
       </div>
       <section className="auth-form-side">
         <div className="auth-form-wrap">
-          <button className="auth-back-link brand" type="button" onClick={onBack}><span className="brand-mark">c</span><span className="brand-name">cleva<span>match</span></span></button>
+          <button className="auth-back-link brand" type="button" onClick={onBack}><span className="brand-mark">s</span><span className="brand-name">Settle<span>Me</span></span></button>
           <div className="auth-heading"><p className="eyebrow">{mode === "register" ? "Start invoicing" : "Welcome back"}</p><h2>{mode === "register" ? "Create your invoice workspace" : "Sign in to your account"}</h2><p>{mode === "register" ? "Create invoices, share payment links, and follow each client payment from one place." : "Your client invoices, payment links, and checkout updates are right where you left them."}</p></div>
           <form className="auth-form" onSubmit={(event) => void submit(event)}>
             {mode === "register" && <>
@@ -186,8 +186,8 @@ function AuthScreen({ onAuthenticated, initialMode, onBack }: { onAuthenticated:
             {error && <div className="form-error" role="alert">{error}</div>}
             <button className="primary-button auth-submit" disabled={busy}>{busy ? "One moment..." : mode === "register" ? "Create your workspace" : "Sign in"} <span aria-hidden="true">→</span></button>
           </form>
-          <p className="auth-switch">{mode === "register" ? "Already have a workspace?" : "New to Cleva Match?"} <button type="button" onClick={() => { setError(""); setMode(mode === "register" ? "login" : "register"); }}>{mode === "register" ? "Sign in" : "Create an account"}</button></p>
-          <p className="auth-footnote">Your workspace is for creating and managing client invoices. Checkout is handled by Bachs; Cleva Match does not store clients’ card or crypto payment details.</p>
+          <p className="auth-switch">{mode === "register" ? "Already have a workspace?" : "New to SettleMe?"} <button type="button" onClick={() => { setError(""); setMode(mode === "register" ? "login" : "register"); }}>{mode === "register" ? "Sign in" : "Create an account"}</button></p>
+          <p className="auth-footnote">Your workspace is for creating and managing client invoices. Checkout is handled by Bachs; SettleMe does not store clients’ card or crypto payment details.</p>
         </div>
       </section>
     </main>
@@ -552,7 +552,7 @@ function DashboardApp() {
   const recentPayments = [...payments].sort((a, b) => b.receivedAt.localeCompare(a.receivedAt)).slice(0, 5);
 
   if (loading) {
-    return <main className="loading-screen"><div className="brand"><span className="brand-mark">c</span><span className="brand-name">cleva<span>match</span></span></div><div className="loading-spinner" /><p>Getting your workspace ready...</p></main>;
+    return <main className="loading-screen"><div className="brand"><span className="brand-mark">s</span><span className="brand-name">Settle<span>Me</span></span></div><div className="loading-spinner" /><p>Getting your workspace ready...</p></main>;
   }
   if (!user || !data) {
     if (!authMode) return <LandingPage onGetStarted={() => setAuthMode("register")} onSignIn={() => setAuthMode("login")} />;
@@ -563,7 +563,7 @@ function DashboardApp() {
     <div className="app-shell">
       {mobileMenuOpen && <button className="mobile-scrim" aria-label="Close menu" onClick={() => setMobileMenuOpen(false)} />}
       <aside className={`sidebar ${mobileMenuOpen ? "mobile-open" : ""}`}>
-        <a className="brand" href="#overview" onClick={() => setNavFilter("all")}><span className="brand-mark">c</span><span className="brand-name">cleva<span>match</span></span></a>
+        <a className="brand" href="#overview" onClick={() => setNavFilter("all")}><span className="brand-mark">s</span><span className="brand-name">Settle<span>Me</span></span></a>
         <div className="workspace-switch"><span className="workspace-avatar">{initials(workspace?.name || "WS")}</span><div className="workspace-meta"><strong>{workspace?.name}</strong><small>Business workspace</small></div><span className="workspace-chevron">⌄</span></div>
         <p className="nav-label">Workspace</p>
         <nav className="nav">
@@ -595,12 +595,12 @@ function DashboardApp() {
           </section>
 
           <section className="connect-panel panel">
-            <div className="panel-head"><div className="panel-title"><h2>Set up freelancer payouts</h2><p>Cleva Match connects your payout account so clients can pay your invoices from their invoice page.</p></div></div>
+            <div className="panel-head"><div className="panel-title"><h2>Set up freelancer payouts</h2><p>SettleMe connects your payout account so clients can pay your invoices from their invoice page.</p></div></div>
             <div className="connect-status">
               <span className={`status ${workspace?.bachsAccountStatus === "ready" ? "paid" : "open"}`}>
                 {workspace?.bachsAccountStatus === "ready" ? "Ready to accept payments" : workspace?.bachsAccountId ? "Payout setup in progress" : "Payout setup needed"}
               </span>
-              <p>Clients can pay without creating a Bachs account. You won’t need a separate Bachs login either: Cleva Match creates your connected payout account. Bachs may ask you to verify your identity and add payout details before you can receive funds.</p>
+              <p>Clients can pay without creating a Bachs account. You won’t need a separate Bachs login either: SettleMe creates your connected payout account. Bachs may ask you to verify your identity and add payout details before you can receive funds.</p>
               <p>Once enabled, offer USD, USDT on TRC-20, or USDT on ERC-20. Checkout stays on your invoice page, and Bachs confirms successful payments before invoices are marked paid.</p>
             </div>
             <form className="connect-form" onSubmit={(event) => void startBachsOnboarding(event)}>
@@ -609,7 +609,7 @@ function DashboardApp() {
               <button className="primary-button" disabled={busy}>{workspace?.bachsAccountId ? "Continue payout setup" : "Set up payouts"}</button>
               {workspace?.bachsAccountId && <button className="secondary-button" type="button" disabled={busy} onClick={() => void refreshBachsStatus()}>Refresh payout status</button>}
             </form>
-            <p className="connect-disclaimer">Cleva Match deducts a 3.5% platform fee from each successful invoice payment. Bachs processing fees are additional and separate. Payment methods depend on Bachs approval and your account’s enabled capabilities.</p>
+            <p className="connect-disclaimer">SettleMe deducts a 3.5% platform fee from each successful invoice payment. Bachs processing fees are additional and separate. Payment methods depend on Bachs approval and your account’s enabled capabilities.</p>
           </section>
 
           {suggestedMatches.length > 0 && <section className="match-banner"><div className="sparkle">✦</div><div className="match-copy"><strong>{suggestedMatches.length} possible match{suggestedMatches.length === 1 ? "" : "es"} ready for your review</strong><span>Review imported payment records and confirm the invoice they belong to.</span></div><button className="banner-link" onClick={() => setNavFilter("review")}>Review suggestions <span>→</span></button></section>}
@@ -640,7 +640,7 @@ function DashboardApp() {
             </section>
             <section className="attention"><div className="attention-count">{invoices.filter((invoice) => paymentForInvoice.get(invoice.id)?.status !== "confirmed").length}</div><h3>{!invoices.length ? "Create your first client invoice" : invoices.some((invoice) => paymentForInvoice.get(invoice.id)?.status !== "confirmed") ? "Invoices awaiting payment" : "Every invoice is paid"}</h3><p>{!invoices.length ? "Add an invoice, connect Bachs, and share its payment link with your client." : invoices.some((invoice) => paymentForInvoice.get(invoice.id)?.status !== "confirmed") ? "Share each invoice’s payment link and follow its status here. Bachs confirms payments before invoices are marked paid." : "Your client payments are confirmed. Create another invoice whenever you’re ready."}</p><button className="secondary-button" onClick={() => invoices.length ? document.getElementById("invoices")?.scrollIntoView({ behavior: "smooth" }) : setEntryMode("invoice")}>{invoices.length ? "View client invoices →" : "＋ Create your first invoice"}</button></section>
           </div>
-          <div className="footer-note">Cleva Match · Client invoicing with embedded Bachs checkout</div>
+          <div className="footer-note">SettleMe · Client invoicing with embedded Bachs checkout</div>
         </div>
       </main>
 
@@ -763,7 +763,7 @@ function PublicInvoicePage({ publicId }: { publicId: string }) {
   const { invoice } = data;
   return <main className="public-invoice-page">
     <article className="public-invoice-card">
-      <a className="brand" href="/"><span className="brand-mark">c</span><span className="brand-name">cleva<span>match</span></span></a>
+      <a className="brand" href="/"><span className="brand-mark">s</span><span className="brand-name">Settle<span>Me</span></span></a>
       <p className="eyebrow">Invoice from</p>
       <h1>{invoice.workspaceName}</h1>
       <div className="public-invoice-number">{invoice.invoiceNumber}</div>
@@ -774,7 +774,7 @@ function PublicInvoicePage({ publicId }: { publicId: string }) {
         : <button className="primary-button public-pay-button" disabled={busy} onClick={() => void payInvoice()}>{busy ? "Opening secure checkout…" : `Pay ${money(invoice.amountAtomic, invoice.currency)}`}</button>}
       {checkingPayment && !invoice.paid && <p className="public-payment-check" role="status">Payment submitted. Waiting for secure confirmation…</p>}
       {error && <p className="form-error" role="alert">{error}</p>}
-      <p className="public-invoice-footnote">Secure checkout powered by Bachs. Your card or payment details are handled by Bachs, not stored by Cleva Match.</p>
+      <p className="public-invoice-footnote">Secure checkout powered by Bachs. Your card or payment details are handled by Bachs, not stored by SettleMe.</p>
     </article>
   </main>;
 }

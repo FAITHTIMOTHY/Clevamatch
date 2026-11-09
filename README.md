@@ -1,6 +1,6 @@
-# Cleva Match
+# SettleMe
 
-Cleva Match helps independent freelancers create invoices, share a public payment link, and get paid through Bachs Connect checkout without sending clients away from the invoice page. When Bachs confirms a payment by webhook, the invoice is automatically marked paid. Each direct charge includes a 3.5% platform fee on the invoice amount.
+SettleMe helps independent freelancers create invoices, share a public payment link, and get paid through Bachs Connect checkout without sending clients away from the invoice page. When Bachs confirms a payment by webhook, the invoice is automatically marked paid. Each direct charge includes a 3.5% platform fee on the invoice amount.
 
 The dashboard also supports manual and CSV invoice/payment records, suggested payment matching, and invoice CSV export. Invoice currencies are USD, USDT on TRON (TRC-20), and USDT on Ethereum (ERC-20), subject to Bachs account capabilities and availability.
 
@@ -32,10 +32,10 @@ This database move does not switch authentication to Supabase Auth yet. Sign-in 
 1. Configure the Bachs platform account and enable the required Connect capabilities.
 2. Set `BACHS_SECRET_KEY` and `BACHS_WEBHOOK_SECRET` in the server environment. Sandbox keys use the Bachs sandbox API; live keys use the production API.
 3. Configure the Bachs webhook endpoint `/api/webhooks/bachs` to send Connect events. The server verifies `X-Bachs-Signature-V2` and treats verified success events as the source of truth.
-4. In the Cleva Match dashboard, start Bachs onboarding and complete the connected-account requirements.
+4. In the SettleMe dashboard, start Bachs onboarding and complete the connected-account requirements.
 5. Create an invoice and copy its public payment link. The client can pay from that page using the Bachs checkout overlay.
 
-The freelancer is the merchant for direct charges and bears Bachs processing fees and refund/dispute responsibilities. Cleva Match's 3.5% fee is separate and calculated from the invoice's gross amount. Bachs documents support for USDT on TRON (TRC-20) and Ethereum (ERC-20); availability still depends on the freelancer's enabled Bachs payment settings. The app does not directly connect to wallets or smart contracts.
+The freelancer is the merchant for direct charges and bears Bachs processing fees and refund/dispute responsibilities. SettleMe's 3.5% fee is separate and calculated from the invoice's gross amount. Bachs documents support for USDT on TRON (TRC-20) and Ethereum (ERC-20); availability still depends on the freelancer's enabled Bachs payment settings. The app does not directly connect to wallets or smart contracts.
 
 ## Build and serve
 
@@ -69,4 +69,4 @@ Amounts can have up to six decimal places. Currency must be `USD`, `USDT_TRC20`,
 
 ## Current product scope
 
-Cleva Match supports invoice creation and sharing, Bachs Connect onboarding, USD/USDT checkout links, verified payment webhooks, manual payment entry, CSV imports, and payment matching. It does not directly custody funds, connect wallets, initiate on-chain transfers, send email, support password recovery or multi-user invitations, or provide accounting, payroll, tax, or legal advice.
+SettleMe supports invoice creation and sharing, Bachs Connect onboarding, USD/USDT checkout links, verified payment webhooks, manual payment entry, CSV imports, and payment matching. It does not directly custody funds, connect wallets, initiate on-chain transfers, send email, support password recovery or multi-user invitations, or provide accounting, payroll, tax, or legal advice.
