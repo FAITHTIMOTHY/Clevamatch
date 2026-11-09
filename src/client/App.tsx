@@ -22,7 +22,6 @@ function LandingPage({ onGetStarted, onSignIn }: { onGetStarted: () => void; onS
     </header>
     <section className="landing-hero">
       <div className="hero-copy">
-        <p className="eyebrow">NIGERIA-FIRST INVOICING FOR INDEPENDENT WORK</p>
         <h1>Do great work.<br /><span>Get paid, clearly.</span></h1>
         <p>Create an itemized crypto invoice, share one private link, and track payment confirmation in one place. No manual matching or chasing payment screenshots.</p>
         <div className="hero-actions">
