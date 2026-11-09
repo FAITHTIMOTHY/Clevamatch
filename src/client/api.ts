@@ -8,15 +8,24 @@ export class ApiError extends Error {
   }
 }
 
-export async function api<T>(url: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(url, {
-    ...options,
-    credentials: "same-origin",
-    headers: {
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
-      ...options.headers,
-    },
-  });
+export async function api<T>(url: string, options: RequestInit = {}, timeoutMs = 0): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      ...(timeoutMs > 0 ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
+      credentials: "same-origin",
+      headers: {
+        ...(options.body ? { "Content-Type": "application/json" } : {}),
+        ...options.headers,
+      },
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "TimeoutError") {
+      throw new ApiError("The server took too long to load your workspace. Please try again.", 408);
+    }
+    throw error;
+  }
 
   if (!response.ok) {
     let message = `Request failed (${response.status}).`;

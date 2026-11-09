@@ -220,7 +220,7 @@ function DashboardApp() {
   const toastTimer = useRef<number | undefined>(undefined);
 
   const reload = useCallback(async () => {
-    const dashboard = await api<DashboardData>("/api/dashboard");
+    const dashboard = await api<DashboardData>("/api/dashboard", {}, 20_000);
     setData(dashboard);
     setWorkspace(dashboard.workspace);
   }, []);
@@ -231,7 +231,7 @@ function DashboardApp() {
       if (!active) return;
       setUser(result.user);
       setWorkspace(result.workspace);
-      return api<DashboardData>("/api/dashboard").then((dashboard) => { if (active) setData(dashboard); });
+      return api<DashboardData>("/api/dashboard", {}, 20_000).then((dashboard) => { if (active) setData(dashboard); });
     }).catch((error: unknown) => {
       if (error instanceof ApiError && error.status === 401) return;
       if (active) setFatalError(error instanceof Error ? error.message : "Could not load your workspace.");
