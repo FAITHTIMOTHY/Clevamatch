@@ -199,8 +199,6 @@ tbody tr:hover { background: #fffaf0; }
 .auth-brand .brand-name { color: #fff8e9; }
 .auth-brand .brand-name > span { color: #ffca6e; }
 .auth-hero-copy { max-width: 470px; padding: 45px 0; }
-.auth-kicker { display: flex; align-items: center; gap: 8px; color: #fce4b8; font-size: 11px; font-weight: 700; }
-.auth-kicker .sparkle { width: 27px; height: 27px; flex-basis: 27px; color: #442d0c; background: #ffca6e; }
 .auth-hero-copy h1 { margin: 25px 0 17px; font-family: Manrope, sans-serif; font-size: clamp(46px, 6vw, 73px); font-weight: 800; letter-spacing: -4px; line-height: .99; }
 .auth-hero-copy p { max-width: 385px; color: #e7d8c0; font-size: 13px; line-height: 1.75; }
 .auth-note { display: flex; align-items: center; gap: 12px; padding: 14px 15px; border: 1px solid rgba(255,255,255,.16); border-radius: 13px; background: rgba(255,255,255,.08); backdrop-filter: blur(8px); }
