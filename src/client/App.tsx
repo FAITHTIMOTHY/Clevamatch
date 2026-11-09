@@ -199,7 +199,7 @@ function DashboardApp() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [data, setData] = useState<DashboardData | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [fatalError, setFatalError] = useState("");
   const [toast, setToast] = useState("");
   const [filter, setFilter] = useState<InvoiceFilter>("all");
@@ -229,6 +229,7 @@ function DashboardApp() {
     let active = true;
     api<ApiMe>("/api/me").then((result) => {
       if (!active) return;
+      setLoading(true);
       setUser(result.user);
       setWorkspace(result.workspace);
       return api<DashboardData>("/api/dashboard", {}, 20_000).then((dashboard) => { if (active) setData(dashboard); });
