@@ -29,6 +29,20 @@
       "when": 1794230162944,
       "tag": "0003_last_terror",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1794230686805,
+      "tag": "0004_little_slapstick",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1794231032896,
+      "tag": "0005_stormy_captain_stacy",
+      "breakpoints": true
     }
   ]
 }

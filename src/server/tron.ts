@@ -18,9 +18,9 @@ const transferPageSchema = z.object({
       address: z.string(),
       decimals: z.coerce.number().int(),
     }),
-    transaction_index: z.union([z.number(), z.string()]).optional(),
+    transaction_index: z.union([z.number(), z.string()]).nullish(),
   }).passthrough()),
-  meta: z.object({ fingerprint: z.string().optional() }).passthrough().optional(),
+  meta: z.object({ fingerprint: z.string().nullish() }).passthrough().nullish(),
 });
 
 export interface TronTransfer {
@@ -138,7 +138,7 @@ export async function fetchTronTransfers(address: string, fingerprint?: string):
     });
   }
 
-  return { transfers, fingerprint: parsed.data.meta?.fingerprint };
+  return { transfers, fingerprint: parsed.data.meta?.fingerprint ?? undefined };
 }
 
 export async function syncTronWallet(wallet: SyncableWallet): Promise<{ imported: number; historyComplete: boolean }> {

@@ -1,4 +1,5 @@
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
 
 export const workspaces = sqliteTable("workspaces", {
   id: text("id").primaryKey(),
@@ -93,11 +94,11 @@ export const payments = sqliteTable(
     uniqueIndex("payments_workspace_dedup_unique").on(
       table.workspaceId,
       table.payerName,
-      table.amountCents,
+      table.amountAtomic,
       table.currency,
       table.reference,
       table.receivedAt,
-    ),
+    ).where(sql`${table.source} <> 'tron'`),
     uniqueIndex("payments_workspace_event_unique").on(table.workspaceId, table.sourceEventId),
   ],
 );

@@ -49,11 +49,28 @@ export async function getWorkspaceMatches(workspaceId: string): Promise<MatchVie
 
   for (const invoice of invoiceRows) {
     if (usedInvoices.has(invoice.id)) continue;
-    const payment = paymentRows.find((candidate) =>
+    let payment = paymentRows.find((candidate) =>
       !usedPayments.has(candidate.id) &&
       !excludedPairs.has(`${invoice.id}:${candidate.id}`) &&
       looksLikeMatch(invoice, candidate),
     );
+    if (!payment) {
+      const exactPayments = paymentRows.filter((candidate) =>
+        !usedPayments.has(candidate.id) &&
+        candidate.currency === invoice.currency &&
+        candidate.amountAtomic === invoice.amountAtomic &&
+        !excludedPairs.has(`${invoice.id}:${candidate.id}`),
+      );
+      const exactOpenInvoices = invoiceRows.filter((candidate) =>
+        !usedInvoices.has(candidate.id) &&
+        candidate.currency === invoice.currency &&
+        candidate.amountAtomic === invoice.amountAtomic,
+      );
+      const [exactPayment] = exactPayments;
+      if (exactPayment && exactPayments.length === 1 && exactPayment.source === "tron" && exactOpenInvoices.length === 1) {
+        payment = exactPayment;
+      }
+    }
     if (!payment) continue;
     result.push({
       invoiceId: invoice.id,
@@ -118,7 +135,10 @@ export async function dismissSuggestedMatch(
   if (!invoice || invoice.workspaceId !== workspaceId || !payment || payment.workspaceId !== workspaceId) {
     throw new MatchError("That invoice or payment could not be found in your workspace.", 404);
   }
-  if (!looksLikeMatch(invoice, payment)) {
+  const isSuggestedPair = (await getWorkspaceMatches(workspaceId)).some((match) =>
+    match.status === "suggested" && match.invoiceId === invoiceId && match.paymentId === paymentId,
+  );
+  if (!isSuggestedPair) {
     throw new MatchError("That invoice and payment are not a suggested match.", 400);
   }
   const [confirmed] = await db.select({ id: matches.id }).from(matches)
