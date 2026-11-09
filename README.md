@@ -44,6 +44,8 @@ npm start
 
 The production server serves the Vite website and JSON API from one origin. Configure `NODE_ENV=production`, `PORT`, `HOST` (optional; defaults to `0.0.0.0` in production), `DATABASE_URL`, and `DATABASE_AUTH_TOKEN` as required by the hosting environment. Apply schema migrations during application startup.
 
+For Vercel, configure `DATABASE_URL` and `DATABASE_AUTH_TOKEN` to point to a persistent Turso/libSQL database in the Vercel project settings. The Vercel API function runs the same Express routes and applies the checked-in migrations; Vercel's static filesystem is not a persistent database. Existing accounts remain available only when the deployment connects to the database where they were created.
+
 ## Import CSV files
 
 Use the in-app template downloads for the supported columns:

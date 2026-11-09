@@ -420,11 +420,11 @@ app.get("/api/export/invoices.csv", async (request, response) => {
 
 await migrate(db, { migrationsFolder: path.resolve(process.cwd(), "drizzle") });
 
-if (isProduction) {
+if (isProduction && !process.env.VERCEL) {
   const staticDirectory = path.resolve(process.cwd(), "dist");
   app.use(express.static(staticDirectory));
   app.get("/{*path}", (_request, response) => response.sendFile(path.join(staticDirectory, "index.html")));
-} else {
+} else if (!isProduction) {
   const { createServer: createViteServer } = await import("vite");
   const vite = await createViteServer({
     configFile: path.resolve(process.cwd(), "vite.config.ts"),
@@ -452,29 +452,33 @@ const errorHandler: ErrorRequestHandler = (error: unknown, _request, response, _
 };
 app.use(errorHandler);
 
-const host = process.env.HOST || (isProduction ? "0.0.0.0" : "127.0.0.1");
-const server = app.listen(port, host, () => {
-  console.log(`Cleva Match is running at http://${host}:${port}`);
-});
+export default app;
 
-const sessionCleanup = setInterval(() => {
-  void removeExpiredSessions().catch((error: unknown) => console.error("Could not clean expired sessions:", error));
-}, 60 * 60 * 1000);
-sessionCleanup.unref();
-
-for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.on(signal, () => {
-    clearInterval(sessionCleanup);
-    server.close(() => {
-      void (async () => {
-        try {
-          await databaseClient.close();
-          process.exit(0);
-        } catch (error) {
-          console.error("Database shutdown failed:", error);
-          process.exit(1);
-        }
-      })();
-    });
+if (!process.env.VERCEL) {
+  const host = process.env.HOST || (isProduction ? "0.0.0.0" : "127.0.0.1");
+  const server = app.listen(port, host, () => {
+    console.log(`Cleva Match is running at http://${host}:${port}`);
   });
+
+  const sessionCleanup = setInterval(() => {
+    void removeExpiredSessions().catch((error: unknown) => console.error("Could not clean expired sessions:", error));
+  }, 60 * 60 * 1000);
+  sessionCleanup.unref();
+
+  for (const signal of ["SIGINT", "SIGTERM"] as const) {
+    process.on(signal, () => {
+      clearInterval(sessionCleanup);
+      server.close(() => {
+        void (async () => {
+          try {
+            await databaseClient.close();
+            process.exit(0);
+          } catch (error) {
+            console.error("Database shutdown failed:", error);
+            process.exit(1);
+          }
+        })();
+      });
+    });
+  }
 }
