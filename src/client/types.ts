@@ -25,6 +25,18 @@ export interface Invoice {
   dueDate: string;
   publicId: string;
   createdAt: string;
+  items: InvoiceItem[];
+}
+
+export interface InvoiceItem {
+  id: string;
+  invoiceId: string;
+  description: string;
+  quantityMilli: number;
+  quantity: number;
+  unitAmountAtomic: number;
+  lineTotalAtomic: number;
+  createdAt: string;
 }
 
 export interface Payment {
@@ -35,7 +47,7 @@ export interface Payment {
   amountAtomic: number;
   currency: string;
   reference: string;
-  source: "manual" | "csv" | "bachs" | "tron";
+  source: "bachs";
   bachsCheckoutId: string | null;
   receivedAt: string;
   createdAt: string;
@@ -44,7 +56,7 @@ export interface Payment {
 export interface Match {
   invoiceId: string;
   paymentId: string;
-  status: "confirmed" | "suggested";
+  status: "confirmed";
   source: "manual" | "automatic";
 }
 
@@ -52,5 +64,6 @@ export interface DashboardData {
   invoices: Invoice[];
   payments: Payment[];
   matches: Match[];
+  availableInvoiceCurrencies: string[];
   workspace: Workspace | null;
 }

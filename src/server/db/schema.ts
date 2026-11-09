@@ -57,6 +57,21 @@ export const invoices = pgTable(
   ],
 );
 
+export const invoiceItems = pgTable(
+  "invoice_items",
+  {
+    id: text("id").primaryKey(),
+    invoiceId: text("invoice_id").notNull().references(() => invoices.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    description: text("description").notNull(),
+    quantityMilli: integer("quantity_milli").notNull(),
+    unitAmountAtomic: bigint("unit_amount_atomic", { mode: "number" }).notNull(),
+    lineTotalAtomic: bigint("line_total_atomic", { mode: "number" }).notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [index("invoice_items_invoice_idx").on(table.invoiceId, table.position)],
+);
+
 export const payments = pgTable(
   "payments",
   {

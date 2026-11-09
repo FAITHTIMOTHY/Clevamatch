@@ -23,6 +23,15 @@ interface BachsResponse<T> {
   message?: string;
 }
 
+export const bachsCryptoCurrencies = [
+  "USDT_TRC20",
+  "USDT_BEP20",
+  "USDT_ERC20",
+  "USDT_SOL",
+  "USDC_BEP20",
+] as const;
+export type BachsCryptoCurrency = typeof bachsCryptoCurrencies[number];
+
 export class BachsError extends Error {
   readonly status: number;
 
@@ -31,6 +40,19 @@ export class BachsError extends Error {
     this.name = "BachsError";
     this.status = status;
   }
+}
+
+export function getEnabledBachsCryptoCurrencies(): BachsCryptoCurrency[] {
+  const configured = process.env.BACHS_SUPPORTED_CRYPTO_CURRENCIES;
+  if (!configured?.trim()) return [];
+  const requested = configured.split(",").map((currency) => currency.trim().toUpperCase()).filter(Boolean);
+  const supported = new Set<string>(bachsCryptoCurrencies);
+  const invalid = requested.filter((currency) => !supported.has(currency));
+  if (invalid.length) {
+    throw new BachsError(`Unsupported currency in BACHS_SUPPORTED_CRYPTO_CURRENCIES: ${invalid.join(", ")}.`, 503);
+  }
+  const enabled = new Set(requested);
+  return bachsCryptoCurrencies.filter((currency) => enabled.has(currency));
 }
 
 function getCredentials(): { key: string; baseUrl: string } {
@@ -91,7 +113,6 @@ export function createBachsAccount(input: {
       configuration: {
         merchant: {
           capabilities: {
-            card_collection: { requested: true },
             crypto: { requested: true },
           },
         },
@@ -124,7 +145,7 @@ export function getBachsCapabilities(accountId: string): Promise<{ items: Array<
 export function createBachsCheckout(input: {
   accountId: string;
   amount: string;
-  currency: "USD" | "USDT_TRC20" | "USDT_ERC20";
+  currency: BachsCryptoCurrency;
   platformFee: string;
   email: string | null;
   customerName: string;

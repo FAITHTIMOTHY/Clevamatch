@@ -3,20 +3,21 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import cookieParser from "cookie-parser";
 import express, { type ErrorRequestHandler } from "express";
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import {
   BachsError,
   createBachsAccount,
   createBachsCheckout,
   createBachsOnboardingLink,
+  getEnabledBachsCryptoCurrencies,
   getBachsCapabilities,
   verifyBachsSignature,
 } from "./bachs.js";
 import { clearSession, createWorkspaceAccount, issueSession, removeExpiredSessions, requireUser, verifyPassword } from "./auth.js";
 import { db, databaseClient } from "./db/client.js";
-import { checkoutSessions, invoices, matches, payments, users, webhookEvents, workspaces } from "./db/schema.js";
-import { createManualMatch, dismissSuggestedMatch, getWorkspaceMatches, MatchError } from "./matching.js";
+import { checkoutSessions, invoiceItems, invoices, matches, payments, users, webhookEvents, workspaces } from "./db/schema.js";
+import { getWorkspaceMatches } from "./matching.js";
 import {
   atomicUnits,
   cents,
@@ -24,9 +25,8 @@ import {
   invoiceImportSchema,
   invoiceInputSchema,
   loginSchema,
-  matchInputSchema,
-  paymentImportSchema,
-  paymentInputSchema,
+  lineTotalAtomic,
+  quantityMilli,
   registerSchema,
 } from "./validation.js";
 
@@ -214,12 +214,23 @@ app.get<{ publicId: string }>("/api/public/invoices/:publicId", async (request, 
     response.status(404).json({ error: "This invoice link is invalid or no longer available." });
     return;
   }
-  const [[workspace], [match], [latestCheckout]] = await Promise.all([
+  const [[workspace], [match], [latestCheckout], items] = await Promise.all([
     db.select({ id: workspaces.id, name: workspaces.name }).from(workspaces)
       .where(eq(workspaces.id, invoice.workspaceId)).limit(1),
-    db.select({ status: matches.status }).from(matches).where(eq(matches.invoiceId, invoice.id)).limit(1),
+    db.select({ status: matches.status }).from(matches).innerJoin(payments, eq(matches.paymentId, payments.id))
+      .where(and(
+        eq(matches.invoiceId, invoice.id),
+        eq(matches.status, "confirmed"),
+        eq(payments.source, "bachs"),
+      )).limit(1),
     db.select({ status: checkoutSessions.status }).from(checkoutSessions)
       .where(eq(checkoutSessions.invoiceId, invoice.id)).orderBy(desc(checkoutSessions.createdAt)).limit(1),
+    db.select({
+      description: invoiceItems.description,
+      quantityMilli: invoiceItems.quantityMilli,
+      unitAmountAtomic: invoiceItems.unitAmountAtomic,
+      lineTotalAtomic: invoiceItems.lineTotalAtomic,
+    }).from(invoiceItems).where(eq(invoiceItems.invoiceId, invoice.id)).orderBy(asc(invoiceItems.position)),
   ]);
   if (!workspace) {
     response.status(404).json({ error: "This invoice is no longer available." });
@@ -231,6 +242,11 @@ app.get<{ publicId: string }>("/api/public/invoices/:publicId", async (request, 
       amountAtomic: invoice.amountAtomic,
       currency: invoice.currency,
       dueDate: invoice.dueDate,
+      clientName: invoice.clientName,
+      items: items.map((item) => ({
+        ...item,
+        quantity: item.quantityMilli / 1_000,
+      })),
       paid: match?.status === "confirmed",
       workspaceName: workspace.name,
     },
@@ -247,7 +263,12 @@ app.post<{ publicId: string }>("/api/public/invoices/:publicId/checkout", rateLi
   }
   const [[workspace], [match]] = await Promise.all([
     db.select().from(workspaces).where(eq(workspaces.id, invoice.workspaceId)).limit(1),
-    db.select({ status: matches.status }).from(matches).where(eq(matches.invoiceId, invoice.id)).limit(1),
+    db.select({ status: matches.status }).from(matches).innerJoin(payments, eq(matches.paymentId, payments.id))
+      .where(and(
+        eq(matches.invoiceId, invoice.id),
+        eq(matches.status, "confirmed"),
+        eq(payments.source, "bachs"),
+      )).limit(1),
   ]);
   if (match?.status === "confirmed") {
     response.status(409).json({ error: "This invoice has already been paid." });
@@ -255,6 +276,11 @@ app.post<{ publicId: string }>("/api/public/invoices/:publicId/checkout", rateLi
   }
   if (!workspace?.bachsAccountId) {
     response.status(409).json({ error: "The freelancer has not connected payments yet." });
+    return;
+  }
+  const currency = getEnabledBachsCryptoCurrencies().find((enabledCurrency) => enabledCurrency === invoice.currency);
+  if (!currency) {
+    response.status(409).json({ error: "This payment method is not enabled for SettleMe. Contact the freelancer to issue an invoice using an available crypto corridor." });
     return;
   }
   const [openCheckout] = await db.select().from(checkoutSessions).where(and(
@@ -271,7 +297,7 @@ app.post<{ publicId: string }>("/api/public/invoices/:publicId/checkout", rateLi
   }
 
   const capabilityResult = await getBachsCapabilities(workspace.bachsAccountId);
-  const requiredCapability = invoice.currency === "USD" ? "card_collection" : "crypto";
+  const requiredCapability = "crypto";
   if (!capabilityResult.items.some((item) => item.name === requiredCapability && item.status === "active")) {
     response.status(409).json({
       error: `The freelancer's Bachs account is not yet enabled to accept ${invoice.currency} payments.`,
@@ -279,16 +305,13 @@ app.post<{ publicId: string }>("/api/public/invoices/:publicId/checkout", rateLi
     return;
   }
 
-  const precision = invoice.currency === "USD" ? 2 : 6;
-  const grossMinor = invoice.currency === "USD" ? invoice.amountCents : invoice.amountAtomic;
-  const feeMinor = Math.floor((grossMinor * 35 + 500) / 1000);
-  if (feeMinor <= 0 || feeMinor >= grossMinor) {
+  const feeAtomic = Math.floor((invoice.amountAtomic * 35 + 500) / 1_000);
+  if (feeAtomic <= 0 || feeAtomic >= invoice.amountAtomic) {
     response.status(400).json({ error: "This invoice amount is too small to process with the platform fee." });
     return;
   }
-  const scale = 10 ** precision;
-  const amount = (invoice.amountAtomic / 1_000_000).toFixed(precision);
-  const platformFee = (feeMinor / scale).toFixed(precision);
+  const amount = (invoice.amountAtomic / 1_000_000).toFixed(6);
+  const platformFee = (feeAtomic / 1_000_000).toFixed(6);
   const baseUrl = process.env.APP_BASE_URL ||
     (isProduction ? `https://${request.get("host")}` : `${request.protocol}://${request.get("host")}`);
   const publicInvoiceUrl = `${baseUrl}/pay/${encodeURIComponent(invoice.publicId)}`;
@@ -296,7 +319,7 @@ app.post<{ publicId: string }>("/api/public/invoices/:publicId/checkout", rateLi
   const checkout = await createBachsCheckout({
     accountId: workspace.bachsAccountId,
     amount,
-    currency: invoice.currency as "USD" | "USDT_TRC20" | "USDT_ERC20",
+    currency,
     platformFee,
     email: invoice.clientEmail,
     customerName: invoice.clientName,
@@ -431,7 +454,7 @@ app.get("/api/connect/status", async (request, response) => {
     return;
   }
   const result = await getBachsCapabilities(workspace.bachsAccountId);
-  const required = ["card_collection", "crypto", "payouts", "transfers"];
+  const required = ["crypto", "payouts", "transfers"];
   const ready = required.every((name) => result.items.some((item) => item.name === name && item.status === "active"));
   const status = ready ? "ready" : "onboarding";
   await db.update(workspaces).set({ bachsAccountStatus: status })
@@ -441,11 +464,35 @@ app.get("/api/connect/status", async (request, response) => {
 
 app.get("/api/dashboard", async (request, response) => {
   const workspaceId = request.user!.workspaceId;
-  const workspaceInvoices = await db.select().from(invoices).where(eq(invoices.workspaceId, workspaceId));
-  const workspacePayments = await db.select().from(payments).where(eq(payments.workspaceId, workspaceId));
-  const workspaceMatches = await getWorkspaceMatches(workspaceId);
-  const [workspace] = await db.select().from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
-  response.json({ invoices: workspaceInvoices, payments: workspacePayments, matches: workspaceMatches, workspace: workspace || null });
+  const [workspaceInvoices, workspacePayments, workspaceMatches, workspaceItems, [workspace]] = await Promise.all([
+    db.select().from(invoices).where(eq(invoices.workspaceId, workspaceId)),
+    db.select().from(payments).where(and(eq(payments.workspaceId, workspaceId), eq(payments.source, "bachs"))),
+    getWorkspaceMatches(workspaceId),
+    db.select().from(invoiceItems).innerJoin(invoices, eq(invoiceItems.invoiceId, invoices.id))
+      .where(eq(invoices.workspaceId, workspaceId)).orderBy(asc(invoiceItems.position)),
+    db.select().from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1),
+  ]);
+  const itemsByInvoice = new Map<string, typeof workspaceItems>();
+  for (const row of workspaceItems) {
+    const items = itemsByInvoice.get(row.invoice_items.invoiceId) || [];
+    items.push(row);
+    itemsByInvoice.set(row.invoice_items.invoiceId, items);
+  }
+  const invoiceRows = workspaceInvoices.map((invoice) => ({
+    ...invoice,
+    items: (itemsByInvoice.get(invoice.id) || []).map(({ invoice_items: item }) => ({
+      ...item,
+      quantity: item.quantityMilli / 1_000,
+    })),
+  }));
+  const confirmedPayments = new Set(workspacePayments.map((payment) => payment.id));
+  response.json({
+    invoices: invoiceRows,
+    payments: workspacePayments,
+    matches: workspaceMatches.filter((match) => match.status === "confirmed" && confirmedPayments.has(match.paymentId)),
+    availableInvoiceCurrencies: getEnabledBachsCryptoCurrencies(),
+    workspace: workspace || null,
+  });
 });
 
 app.post("/api/invoices", async (request, response) => {
@@ -455,6 +502,11 @@ app.post("/api/invoices", async (request, response) => {
     return;
   }
   const input = parsed.data;
+  const enabledCurrencies = getEnabledBachsCryptoCurrencies();
+  if (!enabledCurrencies.includes(input.currency)) {
+    response.status(409).json({ error: "No confirmed Bachs crypto corridor is enabled for SettleMe. Ask the administrator to configure supported currencies after Bachs approval." });
+    return;
+  }
   const [existing] = await db.select({ id: invoices.id }).from(invoices).where(
     and(eq(invoices.workspaceId, request.user!.workspaceId), eq(invoices.invoiceNumber, input.invoiceNumber)),
   ).limit(1);
@@ -462,21 +514,39 @@ app.post("/api/invoices", async (request, response) => {
     response.status(409).json({ error: "That invoice number already exists in this workspace." });
     return;
   }
+  const itemRecords = input.items.map((item, position) => ({
+    id: randomUUID(),
+    position,
+    description: item.description,
+    quantityMilli: quantityMilli(item.quantity),
+    unitAmountAtomic: atomicUnits(item.unitAmount),
+    lineTotalAtomic: lineTotalAtomic(item.unitAmount, item.quantity),
+    createdAt: new Date().toISOString(),
+  }));
+  const totalAtomic = itemRecords.reduce((sum, item) => sum + item.lineTotalAtomic, 0);
   const record = {
     id: randomUUID(),
     workspaceId: request.user!.workspaceId,
     invoiceNumber: input.invoiceNumber,
     clientName: input.clientName,
     clientEmail: input.clientEmail || null,
-    amountCents: cents(input.amount),
-    amountAtomic: atomicUnits(input.amount),
+    amountCents: cents(totalAtomic / 1_000_000),
+    amountAtomic: totalAtomic,
     currency: input.currency,
     dueDate: input.dueDate,
     publicId: randomUUID().replace(/-/g, ""),
     createdAt: new Date().toISOString(),
   };
-  await db.insert(invoices).values(record);
-  response.status(201).json({ invoice: record });
+  await db.transaction(async (tx) => {
+    await tx.insert(invoices).values(record);
+    await tx.insert(invoiceItems).values(itemRecords.map((item) => ({ ...item, invoiceId: record.id })));
+  });
+  response.status(201).json({
+    invoice: {
+      ...record,
+      items: itemRecords.map((item) => ({ ...item, quantity: item.quantityMilli / 1_000 })),
+    },
+  });
 });
 
 app.post("/api/invoices/import", async (request, response) => {
@@ -489,7 +559,8 @@ app.post("/api/invoices/import", async (request, response) => {
   const existingInvoices = await db.select({ invoiceNumber: invoices.invoiceNumber })
     .from(invoices).where(eq(invoices.workspaceId, workspaceId));
   const seenNumbers = new Set(existingInvoices.map((invoice) => invoice.invoiceNumber));
-  const candidateRecords = [];
+  const candidateRecords: Array<typeof invoices.$inferInsert> = [];
+  const candidateItems = new Map<string, typeof invoiceItems.$inferInsert>();
   for (const input of parsed.data.invoices) {
     const record = {
       id: randomUUID(),
@@ -507,144 +578,50 @@ app.post("/api/invoices/import", async (request, response) => {
     if (seenNumbers.has(input.invoiceNumber)) continue;
     seenNumbers.add(input.invoiceNumber);
     candidateRecords.push(record);
-  }
-  let insertedCount = 0;
-  for (let offset = 0; offset < candidateRecords.length; offset += 50) {
-    const inserted = await db.insert(invoices).values(candidateRecords.slice(offset, offset + 50))
-      .onConflictDoNothing().returning({ id: invoices.id });
-    insertedCount += inserted.length;
-  }
-  response.status(201).json({ imported: insertedCount, skipped: parsed.data.invoices.length - insertedCount });
-});
-
-app.post("/api/payments", async (request, response) => {
-  const parsed = paymentInputSchema.safeParse(request.body);
-  if (!parsed.success) {
-    response.status(400).json({ error: parsed.error.issues[0]?.message || "Please check the payment details." });
-    return;
-  }
-  const input = parsed.data;
-  const record = {
-    id: randomUUID(),
-    workspaceId: request.user!.workspaceId,
-    payerName: input.payerName,
-    amountCents: cents(input.amount),
-    amountAtomic: atomicUnits(input.amount),
-    currency: input.currency,
-    reference: input.reference,
-    source: "manual" as const,
-    receivedAt: input.receivedAt,
-    createdAt: new Date().toISOString(),
-  };
-  await db.insert(payments).values(record);
-  response.status(201).json({ payment: record });
-});
-
-app.post("/api/payments/import", async (request, response) => {
-  const parsed = paymentImportSchema.safeParse(request.body);
-  if (!parsed.success) {
-    response.status(400).json({ error: parsed.error.issues[0]?.message || "Check the payment import file." });
-    return;
-  }
-  const workspaceId = request.user!.workspaceId;
-  const existingPayments = await db.select({
-    payerName: payments.payerName,
-    amountCents: payments.amountCents,
-    amountAtomic: payments.amountAtomic,
-    currency: payments.currency,
-    reference: payments.reference,
-    receivedAt: payments.receivedAt,
-  }).from(payments).where(eq(payments.workspaceId, workspaceId));
-  const fingerprint = (payment: { payerName: string; amountAtomic: number; currency: string; reference: string; receivedAt: string }) =>
-    JSON.stringify([payment.payerName, payment.amountAtomic, payment.currency, payment.reference, payment.receivedAt]);
-  const seenPayments = new Set(existingPayments.map(fingerprint));
-  const candidatePayments = [];
-  for (const input of parsed.data.payments) {
-    const amountCents = cents(input.amount);
-    const amountAtomic = atomicUnits(input.amount);
-    const key = fingerprint({
-      payerName: input.payerName,
-      amountAtomic,
-      currency: input.currency,
-      reference: input.reference,
-      receivedAt: input.receivedAt,
-    });
-    if (seenPayments.has(key)) continue;
-    seenPayments.add(key);
-    candidatePayments.push({
+    candidateItems.set(record.id, {
       id: randomUUID(),
-      workspaceId,
-      payerName: input.payerName,
-      amountCents,
-      amountAtomic,
-      currency: input.currency,
-      reference: input.reference,
-      source: "csv" as const,
-      receivedAt: input.receivedAt,
-      createdAt: new Date().toISOString(),
+      invoiceId: record.id,
+      position: 0,
+      description: "Imported invoice total",
+      quantityMilli: 1_000,
+      unitAmountAtomic: record.amountAtomic,
+      lineTotalAtomic: record.amountAtomic,
+      createdAt: record.createdAt,
     });
   }
   let insertedCount = 0;
-  for (let offset = 0; offset < candidatePayments.length; offset += 50) {
-    const inserted = await db.insert(payments).values(candidatePayments.slice(offset, offset + 50))
-      .onConflictDoNothing().returning({ id: payments.id });
-    insertedCount += inserted.length;
-  }
-  response.status(201).json({ imported: insertedCount, skipped: parsed.data.payments.length - insertedCount });
-});
-
-app.post("/api/payments/:paymentId/match", async (request, response) => {
-  const parsed = matchInputSchema.safeParse(request.body);
-  if (!parsed.success) {
-    response.status(400).json({ error: "Choose an invoice to match." });
-    return;
-  }
-  await createManualMatch(request.user!.workspaceId, request.params.paymentId, parsed.data.invoiceId);
-  response.status(201).json({ ok: true });
-});
-
-app.post("/api/payments/:paymentId/dismiss-match", async (request, response) => {
-  const parsed = matchInputSchema.safeParse(request.body);
-  if (!parsed.success) {
-    response.status(400).json({ error: "Choose the suggested invoice to dismiss." });
-    return;
-  }
-  await dismissSuggestedMatch(request.user!.workspaceId, request.params.paymentId, parsed.data.invoiceId);
-  response.status(204).end();
-});
-
-app.delete("/api/invoices/:invoiceId/match", async (request, response) => {
-  const [invoice] = await db.select({ id: invoices.id }).from(invoices).where(and(
-    eq(invoices.id, request.params.invoiceId),
-    eq(invoices.workspaceId, request.user!.workspaceId),
-  )).limit(1);
-  if (!invoice) {
-    response.status(404).json({ error: "Invoice not found." });
-    return;
-  }
-  await db.delete(matches).where(and(
-    eq(matches.invoiceId, invoice.id),
-    eq(matches.workspaceId, request.user!.workspaceId),
-  ));
-  response.status(204).end();
+  await db.transaction(async (tx) => {
+    for (let offset = 0; offset < candidateRecords.length; offset += 50) {
+      const batch = candidateRecords.slice(offset, offset + 50);
+      const inserted = await tx.insert(invoices).values(batch)
+        .onConflictDoNothing().returning({ id: invoices.id });
+      insertedCount += inserted.length;
+      const insertedIds = new Set(inserted.map((row) => row.id));
+      const rows = batch.map((record) => candidateItems.get(record.id)!)
+        .filter((item) => insertedIds.has(item.invoiceId));
+      if (rows.length) await tx.insert(invoiceItems).values(rows);
+    }
+  });
+  response.status(201).json({ imported: insertedCount, skipped: parsed.data.invoices.length - insertedCount });
 });
 
 app.get("/api/export/invoices.csv", async (request, response) => {
   const workspaceId = request.user!.workspaceId;
   const [workspaceInvoices, workspacePayments, workspaceMatches] = await Promise.all([
     db.select().from(invoices).where(eq(invoices.workspaceId, workspaceId)),
-    db.select().from(payments).where(eq(payments.workspaceId, workspaceId)),
+    db.select().from(payments).where(and(eq(payments.workspaceId, workspaceId), eq(payments.source, "bachs"))),
     getWorkspaceMatches(workspaceId),
   ]);
   const lines = [["invoice_number", "client", "email", "amount", "currency", "due_date", "status", "payment_reference"]];
   for (const invoice of workspaceInvoices) {
     const match = workspaceMatches.find((item) => item.invoiceId === invoice.id);
     const payment = match ? workspacePayments.find((item) => item.id === match.paymentId) : undefined;
+    const paid = Boolean(match && payment);
     const overdue = invoice.dueDate < new Date().toISOString().slice(0, 10);
     lines.push([
       invoice.invoiceNumber, invoice.clientName, invoice.clientEmail || "",
       (invoice.amountAtomic / 1_000_000).toFixed(6).replace(/0+$/, "").replace(/\.$/, ""), invoice.currency, invoice.dueDate,
-      match?.status === "confirmed" ? "paid" : match ? "suggested" : overdue ? "overdue" : "open",
+      paid ? "paid" : overdue ? "overdue" : "open",
       payment?.reference || "",
     ]);
   }
@@ -673,10 +650,6 @@ if (isProduction && !process.env.VERCEL) {
 
 const errorHandler: ErrorRequestHandler = (error: unknown, _request, response, _next) => {
   if (error instanceof BachsError) {
-    response.status(error.status).json({ error: error.message });
-    return;
-  }
-  if (error instanceof MatchError) {
     response.status(error.status).json({ error: error.message });
     return;
   }
