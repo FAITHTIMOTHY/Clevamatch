@@ -389,8 +389,8 @@ function DashboardApp() {
       const result = await api<{ connected: boolean; status: string }>("/api/connect/status");
       await reload();
       showToast(result.status === "ready"
-        ? "Your Bachs account is ready to accept payments."
-        : result.connected ? "Bachs is still reviewing or waiting for your details." : "Connect your Bachs account to accept payments.");
+        ? "Your freelancer payouts are ready."
+        : result.connected ? "Payout setup is still being reviewed or needs your details." : "Set up freelancer payouts to accept invoice payments.");
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Could not refresh Bachs account status.");
     } finally {
@@ -596,20 +596,21 @@ function DashboardApp() {
           </section>
 
           <section className="connect-panel panel">
-            <div className="panel-head"><div className="panel-title"><h2>Connect Bachs to accept payments</h2><p>Finish payment setup so clients can pay your invoices directly from their invoice page.</p></div></div>
+            <div className="panel-head"><div className="panel-title"><h2>Set up freelancer payouts</h2><p>Cleva Match connects your payout account so clients can pay your invoices from their invoice page.</p></div></div>
             <div className="connect-status">
               <span className={`status ${workspace?.bachsAccountStatus === "ready" ? "paid" : "open"}`}>
-                {workspace?.bachsAccountStatus === "ready" ? "Ready to accept payments" : workspace?.bachsAccountId ? "Setup in progress" : "Not connected"}
+                {workspace?.bachsAccountStatus === "ready" ? "Ready to accept payments" : workspace?.bachsAccountId ? "Payout setup in progress" : "Payout setup needed"}
               </span>
-              <p>Offer USD, USDT on TRC-20, or USDT on ERC-20. Checkout stays on your invoice page, and Bachs confirms successful payments before invoices are marked paid.</p>
+              <p>Clients can pay without creating a Bachs account. You won’t need a separate Bachs login either: Cleva Match creates your connected payout account. Bachs may ask you to verify your identity and add payout details before you can receive funds.</p>
+              <p>Once enabled, offer USD, USDT on TRC-20, or USDT on ERC-20. Checkout stays on your invoice page, and Bachs confirms successful payments before invoices are marked paid.</p>
             </div>
             <form className="connect-form" onSubmit={(event) => void startBachsOnboarding(event)}>
               <label>Country code<input required minLength={2} maxLength={2} value={connectCountry} onChange={(event) => setConnectCountry(event.target.value.toUpperCase())} placeholder="US" autoComplete="country" /></label>
               <label>Account type<select value={connectEntityType} onChange={(event) => setConnectEntityType(event.target.value as "individual" | "company")}><option value="individual">Individual freelancer</option><option value="company">Registered business</option></select></label>
-              <button className="primary-button" disabled={busy}>{workspace?.bachsAccountId ? "Continue Bachs setup" : "Connect Bachs"}</button>
-              {workspace?.bachsAccountId && <button className="secondary-button" type="button" disabled={busy} onClick={() => void refreshBachsStatus()}>Refresh status</button>}
+              <button className="primary-button" disabled={busy}>{workspace?.bachsAccountId ? "Continue payout setup" : "Set up payouts"}</button>
+              {workspace?.bachsAccountId && <button className="secondary-button" type="button" disabled={busy} onClick={() => void refreshBachsStatus()}>Refresh payout status</button>}
             </form>
-            <p className="connect-disclaimer">Cleva Match deducts a 3.5% platform fee from each successful invoice payment. Bachs processing fees are additional and separate. Bachs may require identity and business details to activate your account; supported payment methods depend on its approval.</p>
+            <p className="connect-disclaimer">Cleva Match deducts a 3.5% platform fee from each successful invoice payment. Bachs processing fees are additional and separate. Payment methods depend on Bachs approval and your account’s enabled capabilities.</p>
           </section>
 
           {suggestedMatches.length > 0 && <section className="match-banner"><div className="sparkle">✦</div><div className="match-copy"><strong>{suggestedMatches.length} possible match{suggestedMatches.length === 1 ? "" : "es"} ready for your review</strong><span>Review imported payment records and confirm the invoice they belong to.</span></div><button className="banner-link" onClick={() => setNavFilter("review")}>Review suggestions <span>→</span></button></section>}
