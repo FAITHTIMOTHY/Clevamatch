@@ -441,12 +441,10 @@ app.get("/api/connect/status", async (request, response) => {
 
 app.get("/api/dashboard", async (request, response) => {
   const workspaceId = request.user!.workspaceId;
-  const [workspaceInvoices, workspacePayments, workspaceMatches, [workspace]] = await Promise.all([
-    db.select().from(invoices).where(eq(invoices.workspaceId, workspaceId)),
-    db.select().from(payments).where(eq(payments.workspaceId, workspaceId)),
-    getWorkspaceMatches(workspaceId),
-    db.select().from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1),
-  ]);
+  const workspaceInvoices = await db.select().from(invoices).where(eq(invoices.workspaceId, workspaceId));
+  const workspacePayments = await db.select().from(payments).where(eq(payments.workspaceId, workspaceId));
+  const workspaceMatches = await getWorkspaceMatches(workspaceId);
+  const [workspace] = await db.select().from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
   response.json({ invoices: workspaceInvoices, payments: workspacePayments, matches: workspaceMatches, workspace: workspace || null });
 });
 

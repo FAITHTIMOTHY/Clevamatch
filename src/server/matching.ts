@@ -28,17 +28,15 @@ function looksLikeMatch(invoice: InvoiceRecord, payment: PaymentRecord): boolean
 }
 
 export async function getWorkspaceMatches(workspaceId: string): Promise<MatchView[]> {
-  const [invoiceRows, paymentRows, confirmedRows, exclusionRows] = await Promise.all([
-    db.select().from(invoices).where(eq(invoices.workspaceId, workspaceId)),
-    db.select().from(payments).where(eq(payments.workspaceId, workspaceId)),
-    db.select({
+  const invoiceRows = await db.select().from(invoices).where(eq(invoices.workspaceId, workspaceId));
+  const paymentRows = await db.select().from(payments).where(eq(payments.workspaceId, workspaceId));
+  const confirmedRows = await db.select({
       invoiceId: matches.invoiceId,
       paymentId: matches.paymentId,
       source: matches.source,
-    }).from(matches).where(eq(matches.workspaceId, workspaceId)),
-    db.select({ invoiceId: matchExclusions.invoiceId, paymentId: matchExclusions.paymentId })
-      .from(matchExclusions).where(eq(matchExclusions.workspaceId, workspaceId)),
-  ]);
+    }).from(matches).where(eq(matches.workspaceId, workspaceId));
+  const exclusionRows = await db.select({ invoiceId: matchExclusions.invoiceId, paymentId: matchExclusions.paymentId })
+    .from(matchExclusions).where(eq(matchExclusions.workspaceId, workspaceId));
   const result: MatchView[] = confirmedRows.map((match) => ({
     ...match,
     status: "confirmed",
