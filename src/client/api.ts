@@ -22,7 +22,7 @@ export async function api<T>(url: string, options: RequestInit = {}, timeoutMs =
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === "TimeoutError") {
-      throw new ApiError("The server took too long to load your workspace. Please try again.", 408);
+      throw new ApiError("The server took too long to respond. Please try again.", 408);
     }
     throw error;
   }

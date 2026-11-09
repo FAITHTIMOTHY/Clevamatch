@@ -367,7 +367,16 @@ app.post("/api/auth/register", rateLimit, async (request, response) => {
 
   const user = await createWorkspaceAccount(parsed.data);
   await issueSession(user.id, response);
-  response.status(201).json({ user });
+  response.status(201).json({
+    user,
+    workspace: {
+      id: user.workspaceId,
+      name: parsed.data.companyName,
+      bachsAccountId: null,
+      bachsAccountStatus: null,
+      bachsCountry: null,
+    },
+  });
 });
 
 app.post("/api/auth/login", rateLimit, async (request, response) => {
@@ -382,13 +391,27 @@ app.post("/api/auth/login", rateLimit, async (request, response) => {
     name: users.name,
     email: users.email,
     passwordHash: users.passwordHash,
-  }).from(users).where(eq(users.email, parsed.data.email)).limit(1);
+    workspaceName: workspaces.name,
+    bachsAccountId: workspaces.bachsAccountId,
+    bachsAccountStatus: workspaces.bachsAccountStatus,
+    bachsCountry: workspaces.bachsCountry,
+  }).from(users).innerJoin(workspaces, eq(users.workspaceId, workspaces.id))
+    .where(eq(users.email, parsed.data.email)).limit(1);
   if (!record || !(await verifyPassword(parsed.data.password, record.passwordHash))) {
     response.status(401).json({ error: "That email and password don’t match." });
     return;
   }
   await issueSession(record.id, response);
-  response.json({ user: { id: record.id, workspaceId: record.workspaceId, name: record.name, email: record.email } });
+  response.json({
+    user: { id: record.id, workspaceId: record.workspaceId, name: record.name, email: record.email },
+    workspace: {
+      id: record.workspaceId,
+      name: record.workspaceName,
+      bachsAccountId: record.bachsAccountId,
+      bachsAccountStatus: record.bachsAccountStatus,
+      bachsCountry: record.bachsCountry,
+    },
+  });
 });
 
 app.post("/api/auth/logout", requireUser, async (request, response) => {
@@ -397,7 +420,13 @@ app.post("/api/auth/logout", requireUser, async (request, response) => {
 });
 
 app.get("/api/me", requireUser, async (request, response) => {
-  const [workspace] = await db.select({ id: workspaces.id, name: workspaces.name })
+  const [workspace] = await db.select({
+    id: workspaces.id,
+    name: workspaces.name,
+    bachsAccountId: workspaces.bachsAccountId,
+    bachsAccountStatus: workspaces.bachsAccountStatus,
+    bachsCountry: workspaces.bachsCountry,
+  })
     .from(workspaces).where(eq(workspaces.id, request.user!.workspaceId)).limit(1);
   if (!workspace) {
     response.status(404).json({ error: "Your workspace could not be found." });

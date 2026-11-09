@@ -22,7 +22,7 @@ function LandingPage({ onGetStarted, onSignIn }: { onGetStarted: () => void; onS
     </header>
     <section className="landing-hero">
       <div className="hero-copy">
-        <h1>Do great work.<br /><span>Get paid, clearly.</span></h1>
+        <h1>Invoice your clients.<br /><span>Get paid, simply.</span></h1>
         <p>Create an itemized crypto invoice, share one private link, and track payment confirmation in one place. No manual matching or chasing payment screenshots.</p>
         <div className="hero-actions">
           <button className="primary-button" onClick={onGetStarted}>Create your invoice workspace <span>→</span></button>
@@ -187,6 +187,7 @@ function AuthScreen({ onAuthenticated, initialMode, onBack }: { onAuthenticated:
   const [companyName, setCompanyName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -195,18 +196,19 @@ function AuthScreen({ onAuthenticated, initialMode, onBack }: { onAuthenticated:
     setError("");
     setBusy(true);
     try {
+      let result: ApiMe;
       if (mode === "register") {
-        await api<{ user: User }>("/api/auth/register", {
+        result = await api<ApiMe>("/api/auth/register", {
           method: "POST",
           body: JSON.stringify({ name, companyName, email, password }),
-        });
+        }, 20_000);
       } else {
-        await api<{ user: User }>("/api/auth/login", {
+        result = await api<ApiMe>("/api/auth/login", {
           method: "POST",
           body: JSON.stringify({ email, password }),
-        });
+        }, 20_000);
       }
-      onAuthenticated(await api<ApiMe>("/api/me"));
+      onAuthenticated(result);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not sign you in.");
     } finally {
@@ -234,12 +236,11 @@ function AuthScreen({ onAuthenticated, initialMode, onBack }: { onAuthenticated:
               <label>Workspace or business name<input autoComplete="organization" required minLength={2} maxLength={100} value={companyName} onChange={(event) => setCompanyName(event.target.value)} placeholder="Sunday Studio" /></label>
             </>}
             <label>Email address<input type="email" autoComplete="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@yourstudio.com" /></label>
-            <label>Password<input type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} required minLength={mode === "register" ? 10 : 1} maxLength={128} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={mode === "register" ? "At least 10 characters" : "Your password"} /></label>
+            <label>Password<span className="password-input-wrap"><input type={showPassword ? "text" : "password"} autoComplete={mode === "register" ? "new-password" : "current-password"} required minLength={mode === "register" ? 10 : 1} maxLength={128} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={mode === "register" ? "At least 10 characters" : "Your password"} /><button className="password-visibility-toggle" type="button" aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} onClick={() => setShowPassword((visible) => !visible)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.2-6 9.5-6 9.5 6 9.5 6-3.2 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="2.7" />{showPassword && <path d="m4 4 16 16" />}</svg></button></span></label>
             {error && <div className="form-error" role="alert">{error}</div>}
             <button className="primary-button auth-submit" disabled={busy}>{busy ? "One moment..." : mode === "register" ? "Create your workspace" : "Sign in"} <span aria-hidden="true">→</span></button>
           </form>
           <p className="auth-switch">{mode === "register" ? "Already have a workspace?" : "New to SettleMe?"} <button type="button" onClick={() => { setError(""); setMode(mode === "register" ? "login" : "register"); }}>{mode === "register" ? "Sign in" : "Create an account"}</button></p>
-          <p className="auth-footnote">Your workspace is for creating and managing client invoices. Payment details are handled by our checkout provider, not stored by SettleMe.</p>
         </div>
       </section>
     </main>
