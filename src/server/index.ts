@@ -5,7 +5,6 @@ import cookieParser from "cookie-parser";
 import express, { type ErrorRequestHandler } from "express";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
-import { migrate } from "drizzle-orm/libsql/migrator";
 import {
   BachsError,
   createBachsAccount,
@@ -660,8 +659,6 @@ app.get("/api/export/invoices.csv", async (request, response) => {
   response.send(csv);
 });
 
-await migrate(db, { migrationsFolder: path.resolve(process.cwd(), "drizzle") });
-
 if (isProduction && !process.env.VERCEL) {
   const staticDirectory = path.resolve(process.cwd(), "dist");
   app.use(express.static(staticDirectory));
@@ -713,7 +710,7 @@ if (!process.env.VERCEL) {
       server.close(() => {
         void (async () => {
           try {
-            await databaseClient.close();
+            await databaseClient.end({ timeout: 5 });
             process.exit(0);
           } catch (error) {
             console.error("Database shutdown failed:", error);

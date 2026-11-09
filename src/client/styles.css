@@ -194,18 +194,13 @@ tbody tr:hover { background: #fffaf0; }
 .auth-page { display: grid; grid-template-columns: minmax(380px, .92fr) 1.08fr; min-height: 100vh; background: var(--paper); }
 .auth-visual { position: relative; display: flex; overflow: hidden; flex-direction: column; justify-content: space-between; min-height: 100vh; padding: 38px clamp(32px, 5vw, 78px); color: #fff9ee; background: #68471d; }
 .auth-visual::before { position: absolute; inset: 0; background: radial-gradient(ellipse at 86% 20%, rgba(245,166,35,.28), transparent 40%), radial-gradient(ellipse at 8% 84%, rgba(155,113,60,.5), transparent 38%), linear-gradient(150deg, rgba(48,35,18,.15), rgba(48,35,18,.24)); content: ""; }
-.auth-brand, .auth-hero-copy, .auth-note { position: relative; z-index: 1; }
+.auth-brand, .auth-hero-copy { position: relative; z-index: 1; }
 .auth-brand .brand-mark { color: #3e2d17; }
 .auth-brand .brand-name { color: #fff8e9; }
 .auth-brand .brand-name > span { color: #ffca6e; }
 .auth-hero-copy { max-width: 470px; padding: 45px 0; }
 .auth-hero-copy h1 { margin: 25px 0 17px; font-family: Manrope, sans-serif; font-size: clamp(46px, 6vw, 73px); font-weight: 800; letter-spacing: -4px; line-height: .99; }
 .auth-hero-copy p { max-width: 385px; color: #e7d8c0; font-size: 13px; line-height: 1.75; }
-.auth-note { display: flex; align-items: center; gap: 12px; padding: 14px 15px; border: 1px solid rgba(255,255,255,.16); border-radius: 13px; background: rgba(255,255,255,.08); backdrop-filter: blur(8px); }
-.auth-note > span { display: grid; flex: 0 0 35px; place-items: center; width: 35px; height: 35px; border-radius: 11px; background: rgba(255,202,110,.2); font-size: 17px; }
-.auth-note strong, .auth-note small { display: block; }
-.auth-note strong { font-size: 10px; }
-.auth-note small { margin-top: 4px; color: #e6d5bd; font-size: 9px; }
 .auth-decoration { position: absolute; border: 1px solid rgba(255,255,255,.1); border-radius: 50%; }
 .decor-one { right: -125px; top: 20%; width: 350px; height: 350px; }
 .decor-two { right: -80px; top: 25%; width: 260px; height: 260px; }

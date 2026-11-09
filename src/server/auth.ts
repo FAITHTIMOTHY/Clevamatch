@@ -55,19 +55,17 @@ export async function createWorkspaceAccount(input: {
   const now = new Date().toISOString();
   const passwordHash = await hashPassword(input.password);
 
-  await db.batch(
-    [
-      db.insert(workspaces).values({ id: workspaceId, name: input.companyName, createdAt: now }),
-      db.insert(users).values({
+  await db.transaction(async (tx) => {
+    await tx.insert(workspaces).values({ id: workspaceId, name: input.companyName, createdAt: now });
+    await tx.insert(users).values({
         id: userId,
         workspaceId,
         name: input.name,
         email: input.email,
         passwordHash,
         createdAt: now,
-      }),
-    ],
-  );
+    });
+  });
   return { id: userId, workspaceId, name: input.name, email: input.email };
 }
 

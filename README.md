@@ -13,18 +13,19 @@ npm install
 npm run dev
 ```
 
-Open [http://127.0.0.1:3000](http://127.0.0.1:3000). Create an account and workspace to begin. The app creates and migrates a local SQLite-compatible `local.db` file automatically on startup. The database file and `.env` are ignored by Git.
+Open [http://127.0.0.1:3000](http://127.0.0.1:3000). The app needs `DATABASE_URL` set to your Supabase Postgres connection string in `.env` or the server environment to start.
 
-Copy `.env.example` to `.env` and configure Bachs sandbox credentials and the webhook signing secret. Never put secret values in browser code or source control. For local checkout testing, configure Bachs to send Connect events to `https://your-public-host/api/webhooks/bachs` (use a secure tunnel to expose a local server). Set `APP_BASE_URL` to the public app origin so Bachs can return clients to the correct invoice page.
+Copy `.env.example` to `.env` and configure the Supabase Postgres connection string and Bachs sandbox credentials. Never put secret values in browser code or source control. For local checkout testing, configure Bachs to send Connect events to `https://your-public-host/api/webhooks/bachs` (use a secure tunnel to expose a local server). Set `APP_BASE_URL` to the public app origin so Bachs can return clients to the correct invoice page.
 
-For hosted Turso/libSQL, set:
+Use the Supabase session pooler connection string for long-running local/server connections, or its transaction pooler string for serverless deployments, with SSL required. The migration and transfer commands prompt for connection strings in the local terminal if valid values are not already configured, so they do not have to be saved in `.env`.
 
-```dotenv
-DATABASE_URL=libsql://your-database-name-your-org.turso.io
-DATABASE_AUTH_TOKEN=your-database-auth-token
-```
+## Database migration
 
-Keep database tokens private and out of source control.
+The application uses Supabase Postgres. Generate schema migrations with `npm run db:generate`; apply them with `npm run db:migrate:supabase`. The migration command asks for the Supabase connection string if `DATABASE_URL` is not set. Migrations are explicit commands and do not run automatically during serverless function startup.
+
+To copy existing data, take a source backup, apply the schema migration, then run `npm run db:transfer`. It securely prompts for the Supabase connection and a source URL. Use `file:local.db` to transfer the local project database; this requires no legacy database token. For a remote Turso/libSQL source, use its `libsql://` URL and provide an auth token if required. The transfer refuses a non-empty target and preserves users' existing scrypt password hashes and sessions, so current sign-in continues temporarily. The initial local-data transfer for this project has already been completed.
+
+This database move does not switch authentication to Supabase Auth yet. Sign-in remains in the app using the existing scrypt password hashes and session cookies, stored in the Supabase Postgres tables. A later Supabase Auth migration needs a separate user-migration/password-reset plan.
 
 ## Bachs Connect setup
 
@@ -44,9 +45,9 @@ npm run build
 npm start
 ```
 
-The production server serves the Vite website and JSON API from one origin. Configure `NODE_ENV=production`, `PORT`, `HOST` (optional; defaults to `0.0.0.0` in production), `DATABASE_URL`, and `DATABASE_AUTH_TOKEN` as required by the hosting environment. Apply schema migrations during application startup.
+The production server serves the Vite website and JSON API from one origin. Configure `NODE_ENV=production`, `PORT`, `HOST` (optional; defaults to `0.0.0.0` in production), and `DATABASE_URL` as required by the hosting environment. Apply schema migrations as a release/deployment step before routing traffic to a new version.
 
-For Vercel, configure a persistent Turso/libSQL database and the Bachs environment variables in the Vercel project settings. Vercel's static filesystem is not a persistent database. Existing accounts remain available only when the deployment connects to the database where they were created.
+For Vercel, configure the Supabase Postgres connection string and Bachs environment variables in the Vercel project settings. Existing accounts remain available only when the deployment connects to the database where they were migrated.
 
 ## Import CSV files
 

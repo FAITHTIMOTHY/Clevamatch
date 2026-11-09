@@ -170,7 +170,6 @@ function AuthScreen({ onAuthenticated, initialMode, onBack }: { onAuthenticated:
           <h1>Invoice clients.<br />Get paid.</h1>
           <p>Create a clear invoice, share a private payment link, and let clients check out securely with Bachs without leaving your invoice page.</p>
         </div>
-        <div className="auth-note"><span>✓</span><div><strong>Payment status, without the guesswork.</strong><small>Bachs confirms successful checkouts. Cleva Match charges a 3.5% platform fee; Bachs processing fees are separate.</small></div></div>
         <div className="auth-decoration decor-one" /><div className="auth-decoration decor-two" />
       </div>
       <section className="auth-form-side">

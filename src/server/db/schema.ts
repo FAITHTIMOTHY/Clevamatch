@@ -1,7 +1,7 @@
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { bigint, index, integer, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-export const workspaces = sqliteTable("workspaces", {
+export const workspaces = pgTable("workspaces", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   bachsAccountId: text("bachs_account_id"),
@@ -10,7 +10,7 @@ export const workspaces = sqliteTable("workspaces", {
   createdAt: text("created_at").notNull(),
 });
 
-export const users = sqliteTable(
+export const users = pgTable(
   "users",
   {
     id: text("id").primaryKey(),
@@ -23,7 +23,7 @@ export const users = sqliteTable(
   (table) => [uniqueIndex("users_email_unique").on(table.email), index("users_workspace_idx").on(table.workspaceId)],
 );
 
-export const sessions = sqliteTable(
+export const sessions = pgTable(
   "sessions",
   {
     id: text("id").primaryKey(),
@@ -35,7 +35,7 @@ export const sessions = sqliteTable(
   (table) => [uniqueIndex("sessions_token_hash_unique").on(table.tokenHash), index("sessions_user_idx").on(table.userId)],
 );
 
-export const invoices = sqliteTable(
+export const invoices = pgTable(
   "invoices",
   {
     id: text("id").primaryKey(),
@@ -44,7 +44,7 @@ export const invoices = sqliteTable(
     clientName: text("client_name").notNull(),
     clientEmail: text("client_email"),
     amountCents: integer("amount_cents").notNull(),
-    amountAtomic: integer("amount_atomic").notNull().default(0),
+    amountAtomic: bigint("amount_atomic", { mode: "number" }).notNull().default(0),
     currency: text("currency").notNull(),
     dueDate: text("due_date").notNull(),
     publicId: text("public_id").notNull(),
@@ -57,14 +57,14 @@ export const invoices = sqliteTable(
   ],
 );
 
-export const payments = sqliteTable(
+export const payments = pgTable(
   "payments",
   {
     id: text("id").primaryKey(),
     workspaceId: text("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
     payerName: text("payer_name").notNull(),
     amountCents: integer("amount_cents").notNull(),
-    amountAtomic: integer("amount_atomic").notNull().default(0),
+    amountAtomic: bigint("amount_atomic", { mode: "number" }).notNull().default(0),
     currency: text("currency").notNull(),
     reference: text("reference").notNull().default(""),
     source: text("source", { enum: ["manual", "csv", "bachs", "tron"] }).notNull().default("manual"),
@@ -86,7 +86,7 @@ export const payments = sqliteTable(
   ],
 );
 
-export const checkoutSessions = sqliteTable(
+export const checkoutSessions = pgTable(
   "checkout_sessions",
   {
     id: text("id").primaryKey(),
@@ -94,7 +94,7 @@ export const checkoutSessions = sqliteTable(
     invoiceId: text("invoice_id").notNull().references(() => invoices.id, { onDelete: "cascade" }),
     bachsCheckoutId: text("bachs_checkout_id").notNull(),
     checkoutUrl: text("checkout_url").notNull(),
-    amountAtomic: integer("amount_atomic").notNull(),
+    amountAtomic: bigint("amount_atomic", { mode: "number" }).notNull(),
     platformFee: text("platform_fee").notNull(),
     currency: text("currency").notNull(),
     expiresAt: text("expires_at"),
@@ -110,13 +110,13 @@ export const checkoutSessions = sqliteTable(
   ],
 );
 
-export const webhookEvents = sqliteTable("webhook_events", {
+export const webhookEvents = pgTable("webhook_events", {
   id: text("id").primaryKey(),
   type: text("type").notNull(),
   receivedAt: text("received_at").notNull(),
 });
 
-export const matches = sqliteTable(
+export const matches = pgTable(
   "matches",
   {
     id: text("id").primaryKey(),
@@ -134,7 +134,7 @@ export const matches = sqliteTable(
   ],
 );
 
-export const matchExclusions = sqliteTable(
+export const matchExclusions = pgTable(
   "match_exclusions",
   {
     id: text("id").primaryKey(),
