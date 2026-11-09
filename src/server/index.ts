@@ -232,7 +232,7 @@ app.post("/api/payments", async (request, response) => {
     amountAtomic: atomicUnits(input.amount),
     currency: input.currency,
     reference: input.reference,
-    source: "manual",
+    source: "manual" as const,
     receivedAt: input.receivedAt,
     createdAt: new Date().toISOString(),
   };
@@ -341,7 +341,7 @@ app.delete("/api/wallets/:walletId", async (request, response) => {
   response.status(204).end();
 });
 
-app.post("/api/wallets/:walletId/sync", async (request, response) => {
+app.post<{ walletId: string }>("/api/wallets/:walletId/sync", rateLimit, async (request, response) => {
   const [wallet] = await db.select().from(wallets).where(and(
     eq(wallets.id, request.params.walletId),
     eq(wallets.workspaceId, request.user!.workspaceId),
@@ -404,7 +404,7 @@ app.get("/api/export/invoices.csv", async (request, response) => {
     const overdue = invoice.dueDate < new Date().toISOString().slice(0, 10);
     lines.push([
       invoice.invoiceNumber, invoice.clientName, invoice.clientEmail || "",
-      (invoice.amountCents / 100).toFixed(2), invoice.currency, invoice.dueDate,
+      (invoice.amountAtomic / 1_000_000).toFixed(6).replace(/0+$/, "").replace(/\.$/, ""), invoice.currency, invoice.dueDate,
       match?.status === "confirmed" ? "paid" : match ? "suggested" : overdue ? "overdue" : "open",
       payment?.reference || "",
     ]);
