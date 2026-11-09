@@ -54,23 +54,6 @@ export async function getWorkspaceMatches(workspaceId: string): Promise<MatchVie
       !excludedPairs.has(`${invoice.id}:${candidate.id}`) &&
       looksLikeMatch(invoice, candidate),
     );
-    if (!payment) {
-      const exactPayments = paymentRows.filter((candidate) =>
-        !usedPayments.has(candidate.id) &&
-        candidate.currency === invoice.currency &&
-        candidate.amountAtomic === invoice.amountAtomic &&
-        !excludedPairs.has(`${invoice.id}:${candidate.id}`),
-      );
-      const exactOpenInvoices = invoiceRows.filter((candidate) =>
-        !usedInvoices.has(candidate.id) &&
-        candidate.currency === invoice.currency &&
-        candidate.amountAtomic === invoice.amountAtomic,
-      );
-      const [exactPayment] = exactPayments;
-      if (exactPayment && exactPayments.length === 1 && exactPayment.source === "tron" && exactOpenInvoices.length === 1) {
-        payment = exactPayment;
-      }
-    }
     if (!payment) continue;
     result.push({
       invoiceId: invoice.id,

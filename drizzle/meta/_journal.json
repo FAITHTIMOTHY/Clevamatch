@@ -43,6 +43,13 @@
       "when": 1794231032896,
       "tag": "0005_stormy_captain_stacy",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1794234000000,
+      "tag": "0006_bachs_invoices",
+      "breakpoints": true
     }
   ]
 }

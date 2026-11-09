@@ -4,6 +4,9 @@ import { sql } from "drizzle-orm";
 export const workspaces = sqliteTable("workspaces", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
+  bachsAccountId: text("bachs_account_id"),
+  bachsAccountStatus: text("bachs_account_status"),
+  bachsCountry: text("bachs_country"),
   createdAt: text("created_at").notNull(),
 });
 
@@ -32,25 +35,6 @@ export const sessions = sqliteTable(
   (table) => [uniqueIndex("sessions_token_hash_unique").on(table.tokenHash), index("sessions_user_idx").on(table.userId)],
 );
 
-export const wallets = sqliteTable(
-  "wallets",
-  {
-    id: text("id").primaryKey(),
-    workspaceId: text("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
-    label: text("label").notNull(),
-    address: text("address").notNull(),
-    lastSyncedAt: text("last_synced_at"),
-    lastSyncedTimestamp: integer("last_synced_timestamp").notNull().default(0),
-    syncCursor: text("sync_cursor"),
-    historyComplete: integer("history_complete", { mode: "boolean" }).notNull().default(false),
-    createdAt: text("created_at").notNull(),
-  },
-  (table) => [
-    uniqueIndex("wallets_workspace_address_unique").on(table.workspaceId, table.address),
-    index("wallets_workspace_idx").on(table.workspaceId),
-  ],
-);
-
 export const invoices = sqliteTable(
   "invoices",
   {
@@ -63,10 +47,12 @@ export const invoices = sqliteTable(
     amountAtomic: integer("amount_atomic").notNull().default(0),
     currency: text("currency").notNull(),
     dueDate: text("due_date").notNull(),
+    publicId: text("public_id").notNull(),
     createdAt: text("created_at").notNull(),
   },
   (table) => [
     uniqueIndex("invoices_workspace_number_unique").on(table.workspaceId, table.invoiceNumber),
+    uniqueIndex("invoices_public_id_unique").on(table.publicId),
     index("invoices_workspace_due_idx").on(table.workspaceId, table.dueDate),
   ],
 );
@@ -81,11 +67,8 @@ export const payments = sqliteTable(
     amountAtomic: integer("amount_atomic").notNull().default(0),
     currency: text("currency").notNull(),
     reference: text("reference").notNull().default(""),
-    source: text("source", { enum: ["manual", "csv", "tron"] }).notNull().default("manual"),
-    walletId: text("wallet_id").references(() => wallets.id, { onDelete: "set null" }),
-    senderAddress: text("sender_address"),
-    sourceTransactionId: text("source_transaction_id"),
-    sourceEventId: text("source_event_id"),
+    source: text("source", { enum: ["manual", "csv", "bachs", "tron"] }).notNull().default("manual"),
+    bachsCheckoutId: text("bachs_checkout_id"),
     receivedAt: text("received_at").notNull(),
     createdAt: text("created_at").notNull(),
   },
@@ -99,9 +82,39 @@ export const payments = sqliteTable(
       table.reference,
       table.receivedAt,
     ).where(sql`${table.source} <> 'tron'`),
-    uniqueIndex("payments_workspace_event_unique").on(table.workspaceId, table.sourceEventId),
+    uniqueIndex("payments_bachs_checkout_unique").on(table.bachsCheckoutId),
   ],
 );
+
+export const checkoutSessions = sqliteTable(
+  "checkout_sessions",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    invoiceId: text("invoice_id").notNull().references(() => invoices.id, { onDelete: "cascade" }),
+    bachsCheckoutId: text("bachs_checkout_id").notNull(),
+    checkoutUrl: text("checkout_url").notNull(),
+    amountAtomic: integer("amount_atomic").notNull(),
+    platformFee: text("platform_fee").notNull(),
+    currency: text("currency").notNull(),
+    expiresAt: text("expires_at"),
+    status: text("status", { enum: ["open", "paid", "expired"] }).notNull().default("open"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("checkout_sessions_bachs_id_unique").on(table.bachsCheckoutId),
+    index("checkout_sessions_invoice_idx").on(table.invoiceId, table.status),
+    uniqueIndex("checkout_sessions_one_open_per_invoice_unique").on(table.invoiceId)
+      .where(sql`${table.status} = 'open'`),
+  ],
+);
+
+export const webhookEvents = sqliteTable("webhook_events", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull(),
+  receivedAt: text("received_at").notNull(),
+});
 
 export const matches = sqliteTable(
   "matches",

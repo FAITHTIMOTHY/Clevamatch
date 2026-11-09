@@ -8,6 +8,9 @@ export interface User {
 export interface Workspace {
   id: string;
   name: string;
+  bachsAccountId: string | null;
+  bachsAccountStatus: string | null;
+  bachsCountry: string | null;
 }
 
 export interface Invoice {
@@ -20,6 +23,7 @@ export interface Invoice {
   amountAtomic: number;
   currency: string;
   dueDate: string;
+  publicId: string;
   createdAt: string;
 }
 
@@ -31,23 +35,9 @@ export interface Payment {
   amountAtomic: number;
   currency: string;
   reference: string;
-  source: "manual" | "csv" | "tron";
-  walletId: string | null;
-  senderAddress: string | null;
-  sourceTransactionId: string | null;
+  source: "manual" | "csv" | "bachs" | "tron";
+  bachsCheckoutId: string | null;
   receivedAt: string;
-  createdAt: string;
-}
-
-export interface Wallet {
-  id: string;
-  workspaceId: string;
-  label: string;
-  address: string;
-  lastSyncedAt: string | null;
-  lastSyncedTimestamp: number;
-  syncCursor: string | null;
-  historyComplete: boolean;
   createdAt: string;
 }
 
@@ -63,5 +53,4 @@ export interface DashboardData {
   payments: Payment[];
   matches: Match[];
   workspace: Workspace | null;
-  wallets: Wallet[];
 }

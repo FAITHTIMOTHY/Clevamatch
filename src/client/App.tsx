@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { api, ApiError } from "./api.js";
-import type { DashboardData, Invoice, Match, Payment, User, Wallet, Workspace } from "./types.js";
+import type { DashboardData, Invoice, Match, Payment, User, Workspace } from "./types.js";
 
 type AuthMode = "login" | "register";
 type InvoiceFilter = "all" | "paid" | "open" | "overdue" | "review";
 type EntryMode = "invoice" | "payment";
+
+let bachsInitialized = false;
 
 interface ApiMe {
   user: User;
@@ -15,13 +17,13 @@ function LandingPage({ onGetStarted, onSignIn }: { onGetStarted: () => void; onS
   return <main className="landing-page">
     <header className="landing-nav"><a className="brand" href="#"><span className="brand-mark">c</span><span className="brand-name">cleva<span>match</span></span></a><nav><a href="#how-it-works">How it works</a><a href="#why-cleva">Why Cleva Match</a></nav><div><button className="landing-signin" onClick={onSignIn}>Sign in</button><button className="primary-button" onClick={onGetStarted}>Get started <span>→</span></button></div></header>
     <section className="landing-hero">
-      <div className="hero-copy"><h1>Your USDT came in.<br /><span>Let’s find its invoice.</span></h1><p>Connect a public TRON wallet and bring confirmed USDT transfers alongside your invoices. Spend less time checking transactions—and more time doing your thing.</p><div className="hero-actions"><button className="primary-button" onClick={onGetStarted}>Create your free workspace <span>→</span></button><button className="hero-secondary" onClick={() => document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" })}>See how it works <span>↓</span></button></div><div className="hero-trust"><span>✓</span> Private workspace <span className="trust-dot">·</span> Read-only TRON wallet <span className="trust-dot">·</span> You approve every match</div></div>
-      <div className="hero-art" aria-label="Preview of invoice matching dashboard"><div className="art-sun" /><div className="art-card"><div className="art-window"><span /><span /><span /></div><div className="art-card-header"><div><small>MONDAY, NOVEMBER 9</small><strong>Your money, sorted.</strong></div><span className="art-check">✓</span></div><div className="art-metric-row"><div className="art-metric"><small>RECEIVED</small><strong>$8,140</strong></div><div className="art-metric"><small>INVOICES MATCHED</small><strong>4 <span>/ 6</span></strong></div></div><div className="art-invoice-head"><span>INVOICE</span><span>PAYMENT</span><span>STATUS</span></div><div className="art-invoice-row"><div className="art-client"><span className="art-avatar av-one">NS</span><span><b>Northstar Studio</b><small>INV-2048</small></span></div><b>$2,400</b><span className="art-paid">✓ Matched</span></div><div className="art-invoice-row"><div className="art-client"><span className="art-avatar av-two">BC</span><span><b>Bloom Creative</b><small>INV-2051</small></span></div><b>$1,850</b><span className="art-suggested">✦ Review</span></div><div className="art-invoice-row"><div className="art-client"><span className="art-avatar av-three">OL</span><span><b>Orbit Labs</b><small>INV-2054</small></span></div><b>$3,200</b><span className="art-open">◷ Awaiting</span></div><div className="art-floating"><span>✦</span><div><b>Possible match found</b><small>We’ll always ask before confirming.</small></div></div></div><div className="art-decoration deco-star">✳</div><div className="art-decoration deco-flower">✿</div></div>
+      <div className="hero-copy"><h1>Create an invoice.<br /><span>Get paid with ease.</span></h1><p>Send a polished invoice link, let clients pay through secure checkout, and keep every payment status up to date in one simple workspace.</p><div className="hero-actions"><button className="primary-button" onClick={onGetStarted}>Create your free workspace <span>→</span></button><button className="hero-secondary" onClick={() => document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" })}>See how it works <span>↓</span></button></div><div className="hero-trust"><span>✓</span> Shareable invoice links <span className="trust-dot">·</span> Secure Bachs checkout <span className="trust-dot">·</span> Automatic payment confirmation</div></div>
+      <div className="hero-art" aria-label="Preview of invoices and payment status"><div className="art-sun" /><div className="art-card"><div className="art-window"><span /><span /><span /></div><div className="art-card-header"><div><small>MONDAY, NOVEMBER 9</small><strong>Your invoices, sorted.</strong></div><span className="art-check">✓</span></div><div className="art-metric-row"><div className="art-metric"><small>PAID THIS MONTH</small><strong>$8,140</strong></div><div className="art-metric"><small>INVOICES PAID</small><strong>4 <span>/ 6</span></strong></div></div><div className="art-invoice-head"><span>INVOICE</span><span>AMOUNT</span><span>STATUS</span></div><div className="art-invoice-row"><div className="art-client"><span className="art-avatar av-one">NS</span><span><b>Northstar Studio</b><small>INV-2048</small></span></div><b>$2,400</b><span className="art-paid">✓ Paid</span></div><div className="art-invoice-row"><div className="art-client"><span className="art-avatar av-two">BC</span><span><b>Bloom Creative</b><small>INV-2051</small></span></div><b>$1,850</b><span className="art-suggested">↗ Sent</span></div><div className="art-invoice-row"><div className="art-client"><span className="art-avatar av-three">OL</span><span><b>Orbit Labs</b><small>INV-2054</small></span></div><b>$3,200</b><span className="art-open">◷ Awaiting</span></div><div className="art-floating"><span>✓</span><div><b>Payment confirmed</b><small>Your invoice status is up to date.</small></div></div></div><div className="art-decoration deco-star">✳</div><div className="art-decoration deco-flower">✿</div></div>
     </section>
     <section className="landing-proof"><span>MADE FOR PEOPLE WHO WORK ACROSS BORDERS</span><div><b>Freelancers</b><i>·</i><b>Small studios</b><i>·</i><b>Global teams</b><i>·</i><b>Growing businesses</b></div></section>
-    <section className="landing-how" id="how-it-works"><div className="section-intro"><p className="eyebrow">Goodbye, “what was this for?”</p><h2>Less untangling.<br />More <span>everything else.</span></h2><p>Connect a public TRON address and bring confirmed USDT transfers into the same place as your invoices.</p></div><div className="how-cards"><article><div className="how-icon icon-import">↥</div><span className="step-number">01</span><h3>Connect your wallet</h3><p>Add a public TRON address. Cleva Match reads confirmed TRC-20 USDT activity without ever asking for wallet keys.</p></article><article><div className="how-icon icon-match">✦</div><span className="step-number">02</span><h3>Find the right match</h3><p>Compare exact six-decimal USDT amounts and available sender or invoice-reference clues to surface possible matches.</p></article><article><div className="how-icon icon-review">✓</div><span className="step-number">03</span><h3>Review and reconcile</h3><p>Review each suggestion before confirming. Imported transfers remain in your records even if you disconnect a wallet.</p></article></div></section>
-    <section className="landing-feature" id="why-cleva"><div className="feature-mark">c</div><div><p className="eyebrow">The nice-and-simple promise</p><h2>A little clarity for<br />every USDT payment.</h2><p>One place to see confirmed TRON USDT transfers, what’s still open, and which invoice matches need a human’s eyes.</p><button className="primary-button" onClick={onGetStarted}>Make a workspace <span>→</span></button></div><ul><li><span>✓</span> Private to your business</li><li><span>✓</span> TRC-20 USDT only</li><li><span>✓</span> No private keys requested</li><li><span>✓</span> You confirm each match</li></ul></section>
-    <footer className="landing-footer"><a className="brand" href="#"><span className="brand-mark">c</span><span className="brand-name">cleva<span>match</span></span></a><span>An independent invoice and payment matching product concept.</span><button onClick={onSignIn}>Already have an account? Sign in</button></footer>
+    <section className="landing-how" id="how-it-works"><div className="section-intro"><p className="eyebrow">From draft to paid</p><h2>Get your time<br />back from <span>admin.</span></h2><p>Create a clear invoice, send one link, and let secure checkout handle the payment.</p></div><div className="how-cards"><article><div className="how-icon icon-import">▤</div><span className="step-number">01</span><h3>Create your invoice</h3><p>Add your client, amount, and due date. Keep every detail organized in your workspace.</p></article><article><div className="how-icon icon-match">↗</div><span className="step-number">02</span><h3>Share one simple link</h3><p>Send your client a private invoice page with the amount due and an easy way to pay.</p></article><article><div className="how-icon icon-review">✓</div><span className="step-number">03</span><h3>Get payment confirmation</h3><p>Clients pay through Bachs checkout without leaving your invoice page. Confirmed payments update your invoice automatically.</p></article></div></section>
+    <section className="landing-feature" id="why-cleva"><div className="feature-mark">c</div><div><p className="eyebrow">The nice-and-simple promise</p><h2>Professional invoices.<br />A smoother way to get paid.</h2><p>Share invoices with clients, follow what’s outstanding, and keep payment records together—without the busywork.</p><button className="primary-button" onClick={onGetStarted}>Make a workspace <span>→</span></button></div><ul><li><span>✓</span> Private freelancer workspace</li><li><span>✓</span> Shareable invoice pages</li><li><span>✓</span> Secure embedded checkout</li><li><span>✓</span> Automatic payment status</li></ul></section>
+    <footer className="landing-footer"><a className="brand" href="#"><span className="brand-mark">c</span><span className="brand-name">cleva<span>match</span></span></a><span>Simple invoicing and payment collection for freelancers.</span><button onClick={onSignIn}>Already have an account? Sign in</button></footer>
   </main>;
 }
 
@@ -60,9 +62,14 @@ interface ImportedPayment {
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
-const money = (amountAtomic: number, currency = "USDT") => currency === "USDT"
-  ? `${new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 }).format(amountAtomic / 1_000_000)} USDT`
+const money = (amountAtomic: number, currency = "USD") => currency !== "USD"
+  ? `${new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 }).format(amountAtomic / 1_000_000)} ${currency === "USDT_ERC20" ? "USDT (ERC-20)" : "USDT (TRC-20)"}`
   : new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 2 }).format(amountAtomic / 1_000_000);
+const moneyTotals = (records: Array<{ amountAtomic: number; currency: string }>) =>
+  ["USD", "USDT_TRC20", "USDT_ERC20"].map((currency) => {
+    const total = records.filter((record) => record.currency === currency).reduce((sum, record) => sum + record.amountAtomic, 0);
+    return total ? money(total, currency) : "";
+  }).filter(Boolean).join(" · ") || money(0, "USD");
 const initials = (name: string) => name.split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase();
 const prettyDate = (date: string) => {
   const parsed = new Date(`${date}T12:00:00`);
@@ -189,7 +196,7 @@ function AuthScreen({ onAuthenticated, initialMode, onBack }: { onAuthenticated:
   );
 }
 
-export default function App() {
+function DashboardApp() {
   const [user, setUser] = useState<User | null>(null);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [data, setData] = useState<DashboardData | null>(null);
@@ -205,11 +212,10 @@ export default function App() {
   const [selectedInvoiceId, setSelectedInvoiceId] = useState("");
   const [busy, setBusy] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [invoiceDraft, setInvoiceDraft] = useState<InvoiceDraft>({ invoiceNumber: "", clientName: "", clientEmail: "", amount: "", currency: "USDT", dueDate: "" });
-  const [paymentDraft, setPaymentDraft] = useState<PaymentDraft>({ payerName: "", amount: "", currency: "USDT", reference: "", receivedAt: today() });
-  const [walletLabel, setWalletLabel] = useState("");
-  const [walletAddress, setWalletAddress] = useState("");
-  const [syncingWalletId, setSyncingWalletId] = useState("");
+  const [invoiceDraft, setInvoiceDraft] = useState<InvoiceDraft>({ invoiceNumber: "", clientName: "", clientEmail: "", amount: "", currency: "USD", dueDate: "" });
+  const [paymentDraft, setPaymentDraft] = useState<PaymentDraft>({ payerName: "", amount: "", currency: "USD", reference: "", receivedAt: today() });
+  const [connectCountry, setConnectCountry] = useState("US");
+  const [connectEntityType, setConnectEntityType] = useState<"individual" | "company">("individual");
   const [modalError, setModalError] = useState("");
   const invoiceFileRef = useRef<HTMLInputElement>(null);
   const paymentFileRef = useRef<HTMLInputElement>(null);
@@ -267,7 +273,6 @@ export default function App() {
   const invoices = data?.invoices || [];
   const payments = data?.payments || [];
   const matches = data?.matches || [];
-  const connectedWallets = data?.wallets || [];
   const paymentForInvoice = useMemo(() => new Map(matches.map((match) => [match.invoiceId, match])), [matches]);
   const invoiceForPayment = useMemo(() => new Map(matches.map((match) => [match.paymentId, match])), [matches]);
   const matchByInvoice = useMemo(() => new Map(invoices.map((invoice) => [invoice.id, paymentForInvoice.get(invoice.id)])), [invoices, paymentForInvoice]);
@@ -275,14 +280,8 @@ export default function App() {
   const selectedPaymentCandidates = selectedPayment ? invoices.filter((invoice) =>
     !paymentForInvoice.has(invoice.id) && invoice.amountAtomic === selectedPayment.amountAtomic && invoice.currency === selectedPayment.currency,
   ) : [];
-  const confirmedAmount = invoices.filter((invoice) => invoice.currency === "USDT" && paymentForInvoice.get(invoice.id)?.status === "confirmed")
-    .reduce((sum, invoice) => sum + invoice.amountAtomic, 0);
-  const receivedAmount = payments.filter((payment) => payment.currency === "USDT" && payment.receivedAt.slice(0, 7) === today().slice(0, 7))
-    .reduce((sum, payment) => sum + payment.amountAtomic, 0);
-  const openAmount = invoices.filter((invoice) => invoice.currency === "USDT" && paymentForInvoice.get(invoice.id)?.status !== "confirmed")
-    .reduce((sum, invoice) => sum + invoice.amountAtomic, 0);
-  const matchedCount = matches.length;
-
+  const receivedAmount = moneyTotals(payments.filter((payment) => payment.receivedAt.slice(0, 7) === today().slice(0, 7)));
+  const openAmount = moneyTotals(invoices.filter((invoice) => paymentForInvoice.get(invoice.id)?.status !== "confirmed"));
   const filteredInvoices = useMemo(() => {
     const term = search.trim().toLocaleLowerCase();
     const todayDate = today();
@@ -339,7 +338,7 @@ export default function App() {
         body: JSON.stringify({ ...invoiceDraft, amount: Number(invoiceDraft.amount) }),
       });
       setEntryMode(null);
-      setInvoiceDraft({ invoiceNumber: "", clientName: "", clientEmail: "", amount: "", currency: "USDT", dueDate: "" });
+      setInvoiceDraft({ invoiceNumber: "", clientName: "", clientEmail: "", amount: "", currency: "USD", dueDate: "" });
       await reload();
       showToast("Invoice added to your workspace.");
     } catch (error) {
@@ -359,7 +358,7 @@ export default function App() {
         body: JSON.stringify({ ...paymentDraft, amount: Number(paymentDraft.amount) }),
       });
       setEntryMode(null);
-      setPaymentDraft({ payerName: "", amount: "", currency: "USDT", reference: "", receivedAt: today() });
+      setPaymentDraft({ payerName: "", amount: "", currency: "USD", reference: "", receivedAt: today() });
       await reload();
       showToast("Payment saved. We’ve checked for invoice matches.");
     } catch (error) {
@@ -369,51 +368,49 @@ export default function App() {
     }
   }
 
-  async function addWallet(event: FormEvent<HTMLFormElement>) {
+  async function startBachsOnboarding(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
     try {
-      await api<{ wallet: Wallet }>("/api/wallets", {
+      const { onboardingUrl } = await api<{ onboardingUrl: string }>("/api/connect/onboarding", {
         method: "POST",
-        body: JSON.stringify({ label: walletLabel, address: walletAddress }),
+        body: JSON.stringify({ country: connectCountry, entityType: connectEntityType }),
       });
-      setWalletLabel("");
-      setWalletAddress("");
-      await reload();
-      showToast("TRON wallet connected. Its public activity is read-only.");
+      window.location.assign(onboardingUrl);
     } catch (error) {
-      showToast(error instanceof Error ? error.message : "Could not connect that wallet.");
+      showToast(error instanceof Error ? error.message : "Could not start Bachs onboarding.");
     } finally {
       setBusy(false);
     }
   }
 
-  async function syncWallet(wallet: Wallet) {
-    setSyncingWalletId(wallet.id);
-    try {
-      const result = await api<{ imported: number; historyComplete: boolean }>(`/api/wallets/${encodeURIComponent(wallet.id)}/sync`, { method: "POST" });
-      await reload();
-      showToast(result.historyComplete
-        ? `${result.imported} confirmed USDT transfer${result.imported === 1 ? "" : "s"} imported.`
-        : `${result.imported} transfers imported. Sync again to continue the full wallet history.`);
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "Could not sync this wallet.");
-    } finally {
-      setSyncingWalletId("");
-    }
-  }
-
-  async function disconnectWallet(wallet: Wallet) {
-    if (!window.confirm(`Disconnect ${wallet.label}? Imported transfers will remain in your records.`)) return;
+  async function refreshBachsStatus() {
     setBusy(true);
     try {
-      await api<void>(`/api/wallets/${encodeURIComponent(wallet.id)}`, { method: "DELETE" });
+      const result = await api<{ connected: boolean; status: string }>("/api/connect/status");
       await reload();
-      showToast("Wallet disconnected. Its imported transfers were kept.");
+      showToast(result.status === "ready"
+        ? "Your Bachs account is ready to accept payments."
+        : result.connected ? "Bachs is still reviewing or waiting for your details." : "Connect your Bachs account to accept payments.");
     } catch (error) {
-      showToast(error instanceof Error ? error.message : "Could not disconnect that wallet.");
+      showToast(error instanceof Error ? error.message : "Could not refresh Bachs account status.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!user || !new URLSearchParams(window.location.search).has("connect")) return;
+    window.history.replaceState(null, "", window.location.pathname);
+    void refreshBachsStatus();
+  }, [user]);
+
+  async function copyInvoiceLink(invoice: Invoice) {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/pay/${invoice.publicId}`);
+      showToast(`Payment link copied for ${invoice.invoiceNumber}.`);
+    } catch (error) {
+      showToast(error instanceof Error ? "Could not copy the payment link." : "Clipboard access is unavailable in this browser.");
     }
   }
 
@@ -436,7 +433,7 @@ export default function App() {
             invoiceNumber, clientName,
             clientEmail: csvValue(record, "clientemail", "email") || undefined,
             amount,
-            currency: csvValue(record, "currency").toUpperCase() || "USDT",
+            currency: csvValue(record, "currency").toUpperCase() || "USD",
             dueDate,
           };
         });
@@ -454,7 +451,7 @@ export default function App() {
           if (!payerName || !amount || !receivedAt) throw new Error("Each payment needs a date, payer, and amount.");
           return {
             payerName, amount,
-            currency: csvValue(record, "currency").toUpperCase() || "USDT",
+            currency: csvValue(record, "currency").toUpperCase() || "USD",
             reference: csvValue(record, "reference", "memo", "description", "transactionreference"),
             receivedAt,
           };
@@ -530,8 +527,8 @@ export default function App() {
 
   function downloadCsvTemplate(type: EntryMode) {
     const content = type === "invoice"
-      ? "invoice_number,client_name,client_email,amount,currency,due_date\nINV-3001,Acme Studio,finance@example.com,1250.000000,USDT,2026-12-01\n"
-      : "received_date,payer,amount,currency,reference\n2026-11-09,Acme Studio,1250.000000,USDT,INV-3001\n";
+      ? "invoice_number,client_name,client_email,amount,currency,due_date\nINV-3001,Acme Studio,finance@example.com,1250.00,USD,2026-12-01\n"
+      : "received_date,payer,amount,currency,reference\n2026-11-09,Acme Studio,1250.00,USD,INV-3001\n";
     const url = URL.createObjectURL(new Blob([content], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;
@@ -588,42 +585,45 @@ export default function App() {
 
         <div className="content">
           <section className="welcome">
-            <div><p className="eyebrow">{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</p><h1>Good morning, {user.name.split(" ")[0]} <span aria-hidden="true">☀️</span></h1><p className="subtitle">Your money came in. Let’s make sure it found its way home.</p></div>
+            <div><p className="eyebrow">{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</p><h1>Good morning, {user.name.split(" ")[0]} <span aria-hidden="true">☀️</span></h1><p className="subtitle">Create invoices, share a link, and keep track of what’s been paid.</p></div>
             <div className="welcome-actions"><button className="secondary-button" onClick={() => setEntryMode("payment")}>＋ Add payment</button><button className="primary-button" onClick={() => setEntryMode("invoice")}><span>＋</span> Add invoice</button></div>
           </section>
 
           <section className="stats" id="summary" aria-label="Business payment summary">
-            <article className="stat-card"><div className="stat-top"><span>Received this month</span><span className="stat-icon">↙</span></div><div className="stat-value">{money(receivedAmount)}</div><div className="stat-note">{payments.length} payment{payments.length === 1 ? "" : "s"} recorded in your workspace</div></article>
-            <article className="stat-card"><div className="stat-top"><span>Matched to invoices</span><span className="stat-icon">✓</span></div><div className="stat-value">{matchedCount}<span className="stat-context">of {invoices.length} invoices</span></div><div className="stat-note">{confirmedMatches.length} confirmed · {suggestedMatches.length} suggested</div></article>
-            <article className="stat-card"><div className="stat-top"><span>Awaiting payment</span><span className="stat-icon">◷</span></div><div className="stat-value">{money(openAmount)}</div><div className="stat-note">{invoices.length - confirmedMatches.length} invoice{invoices.length - confirmedMatches.length === 1 ? "" : "s"} not yet confirmed paid</div></article>
+            <article className="stat-card"><div className="stat-top"><span>Received this month</span><span className="stat-icon">↙</span></div><div className="stat-value">{receivedAmount}</div><div className="stat-note">{payments.length} payment{payments.length === 1 ? "" : "s"} recorded in your workspace</div></article>
+            <article className="stat-card"><div className="stat-top"><span>Paid invoices</span><span className="stat-icon">✓</span></div><div className="stat-value">{confirmedMatches.length}<span className="stat-context">of {invoices.length} invoices</span></div><div className="stat-note">Confirmed payments</div></article>
+            <article className="stat-card"><div className="stat-top"><span>Awaiting payment</span><span className="stat-icon">◷</span></div><div className="stat-value">{openAmount}</div><div className="stat-note">{invoices.length - confirmedMatches.length} invoice{invoices.length - confirmedMatches.length === 1 ? "" : "s"} not yet confirmed paid</div></article>
             <article className="stat-card"><div className="stat-top"><span>Needs a look</span><span className="stat-icon">!</span></div><div className="stat-value">{unmatchedPayments.length + suggestedMatches.length}<span className="stat-context">item{unmatchedPayments.length + suggestedMatches.length === 1 ? "" : "s"}</span></div><div className="stat-note">{suggestedMatches.length} suggestion{suggestedMatches.length === 1 ? "" : "s"} · {unmatchedPayments.length} unmatched</div></article>
           </section>
 
-          <section className="wallet-panel panel">
-            <div className="panel-head"><div className="panel-title"><h2>TRON wallets</h2><p>Connect public addresses to import confirmed TRC-20 USDT transfers. Read-only—never enter a private key or seed phrase.</p></div></div>
-            <form className="wallet-connect-form" onSubmit={(event) => void addWallet(event)}>
-              <label>Wallet label<input required maxLength={60} value={walletLabel} onChange={(event) => setWalletLabel(event.target.value)} placeholder="Business treasury" /></label>
-              <label>TRON public address<input required maxLength={35} value={walletAddress} onChange={(event) => setWalletAddress(event.target.value)} placeholder="T..." autoComplete="off" /></label>
-              <button className="primary-button" disabled={busy || !walletLabel.trim() || !walletAddress.trim()}>Connect wallet</button>
+          <section className="connect-panel panel">
+            <div className="panel-head"><div className="panel-title"><h2>Set up payments</h2><p>Connect a Bachs account so clients can pay your invoices securely from the invoice page.</p></div></div>
+            <div className="connect-status">
+              <span className={`status ${workspace?.bachsAccountStatus === "ready" ? "paid" : "open"}`}>
+                {workspace?.bachsAccountStatus === "ready" ? "Ready to accept payments" : workspace?.bachsAccountId ? "Setup in progress" : "Not connected"}
+              </span>
+              <p>Invoices support USD, USDT on TRC-20, and USDT on ERC-20, with checkout hosted in a secure overlay on your page. Bachs confirms payments before invoices are marked paid.</p>
+            </div>
+            <form className="connect-form" onSubmit={(event) => void startBachsOnboarding(event)}>
+              <label>Country code<input required minLength={2} maxLength={2} value={connectCountry} onChange={(event) => setConnectCountry(event.target.value.toUpperCase())} placeholder="US" autoComplete="country" /></label>
+              <label>Account type<select value={connectEntityType} onChange={(event) => setConnectEntityType(event.target.value as "individual" | "company")}><option value="individual">Individual freelancer</option><option value="company">Registered business</option></select></label>
+              <button className="primary-button" disabled={busy}>{workspace?.bachsAccountId ? "Continue Bachs setup" : "Connect Bachs"}</button>
+              {workspace?.bachsAccountId && <button className="secondary-button" type="button" disabled={busy} onClick={() => void refreshBachsStatus()}>Refresh status</button>}
             </form>
-            {connectedWallets.length === 0 ? <p className="wallet-empty">No wallets connected yet. Add an address to start importing on-chain USDT transfers.</p> : <div className="wallet-list">{connectedWallets.map((wallet) => <div className="wallet-row" key={wallet.id}>
-              <div className="wallet-copy"><strong>{wallet.label}</strong><code>{wallet.address}</code><small>{wallet.historyComplete ? wallet.lastSyncedAt ? `History synced · ${prettyDate(wallet.lastSyncedAt.slice(0, 10))}` : "History import complete" : wallet.syncCursor ? "Full history import in progress" : "Not synced yet"}</small></div>
-              <div className="wallet-actions"><button className="secondary-button" disabled={Boolean(syncingWalletId)} onClick={() => void syncWallet(wallet)}>{syncingWalletId === wallet.id ? "Syncing..." : wallet.historyComplete ? "Sync now" : wallet.syncCursor ? "Continue import" : "Import history"}</button><button className="row-action subtle-action" disabled={busy || Boolean(syncingWalletId)} onClick={() => void disconnectWallet(wallet)}>Disconnect</button></div>
-            </div>)}</div>}
-            <p className="wallet-disclaimer">Transactions are imported from TRON’s public chain through TronGrid. The sender address may not identify the client. Review suggested invoice matches before confirming.</p>
+            <p className="connect-disclaimer">Bachs may require identity and business details to activate payment and payout capabilities. Freelancer payouts also incur Bachs’ processing fees, separate from Cleva Match’s 3.5% platform fee. Supported USDT networks are determined by Bachs.</p>
           </section>
 
-          {suggestedMatches.length > 0 && <section className="match-banner"><div className="sparkle">✦</div><div className="match-copy"><strong>{suggestedMatches.length} possible match{suggestedMatches.length === 1 ? "" : "es"} ready for your review</strong><span>We check exact USDT amounts and use sender or invoice-reference clues where available. Confirm each match.</span></div><button className="banner-link" onClick={() => setNavFilter("review")}>Review suggestions <span>→</span></button></section>}
+          {suggestedMatches.length > 0 && <section className="match-banner"><div className="sparkle">✦</div><div className="match-copy"><strong>{suggestedMatches.length} possible match{suggestedMatches.length === 1 ? "" : "es"} ready for your review</strong><span>Review imported payment records and confirm the invoice they belong to.</span></div><button className="banner-link" onClick={() => setNavFilter("review")}>Review suggestions <span>→</span></button></section>}
 
           <section className="panel" id="invoices">
             <div className="panel-head"><div className="panel-title"><h2>Your invoices</h2><p>A little clarity on every dollar coming in.</p></div><div className="panel-actions"><button className="secondary-button" onClick={() => paymentFileRef.current?.click()} disabled={busy}>↑ Import payments</button><button className="secondary-button" onClick={exportInvoices} disabled={invoices.length === 0}>↓ Export</button></div></div>
             <div className="table-tools"><div className="tabs" role="tablist" aria-label="Filter invoices">{(["all", "paid", "open", "overdue", "review"] as InvoiceFilter[]).map((item) => <button key={item} role="tab" aria-selected={filter === item} className={`tab ${filter === item ? "active" : ""}`} onClick={() => setFilter(item)}>{item === "all" ? `All (${invoices.length})` : item === "review" ? "Review match" : item[0]!.toUpperCase() + item.slice(1)}</button>)}</div><div className="tool-right"><input className="search" type="search" aria-label="Search invoices" placeholder="Search invoices or clients..." value={search} onChange={(event) => setSearch(event.target.value)} /><select className="filter-select" aria-label="Sort invoices" value={sort} onChange={(event) => setSort(event.target.value)}><option value="due">Sort: due date</option><option value="amount">Sort: amount</option><option value="client">Sort: client</option></select></div></div>
-            <div className="table-wrap"><table><thead><tr><th>Invoice</th><th>Client</th><th>Amount</th><th>Due date</th><th>Status</th><th>Payment match</th><th /></tr></thead><tbody>
+            <div className="table-wrap"><table><thead><tr><th>Invoice</th><th>Client</th><th>Amount</th><th>Due date</th><th>Status</th><th>Payment</th><th>Share</th></tr></thead><tbody>
               {filteredInvoices.map((invoice) => {
                 const match = paymentForInvoice.get(invoice.id);
                 const payment = match && payments.find((item) => item.id === match.paymentId);
                 const status = match?.status === "confirmed" ? "paid" : match?.status === "suggested" ? "review" : invoice.dueDate < today() ? "overdue" : "open";
-                return <tr key={invoice.id}><td><span className="invoice-id">{invoice.invoiceNumber}</span></td><td><div className="client-cell"><span className="client-avatar">{initials(invoice.clientName)}</span><span><span className="client-name">{invoice.clientName}</span><span className="client-email">{invoice.clientEmail || "No email added"}</span></span></div></td><td className="amount">{money(invoice.amountAtomic, invoice.currency)}</td><td className={`due-date ${status === "overdue" ? "late" : ""}`}>{prettyDate(invoice.dueDate)}</td><td><span className={`status ${status}`}>{status === "paid" ? "Paid" : status === "review" ? "Review match" : status === "overdue" ? "Overdue" : "Awaiting"}</span></td><td className={`match-cell ${match ? "has-match" : ""}`}>{match && payment ? <>{match.status === "confirmed" ? "✓ Matched" : "✦ Suggested"} · {payment.payerName} <small>{prettyDate(payment.receivedAt)}</small></> : "No match yet"}</td><td>{match?.status === "suggested" && payment ? <div className="review-actions"><button className="row-action" disabled={busy} onClick={() => void confirmMatch(payment.id, invoice.id)}>Confirm</button><button className="row-action subtle-action" disabled={busy} onClick={() => void dismissMatch(payment.id, invoice.id)}>Not a match</button></div> : match?.status === "confirmed" ? <button className="row-action subtle-action" disabled={busy} onClick={() => void removeMatch(invoice)}>Undo</button> : <button className="row-action" onClick={() => showToast(`No payment has been linked to ${invoice.invoiceNumber} yet.`)}>Details →</button>}</td></tr>;
+                return <tr key={invoice.id}><td><span className="invoice-id">{invoice.invoiceNumber}</span></td><td><div className="client-cell"><span className="client-avatar">{initials(invoice.clientName)}</span><span><span className="client-name">{invoice.clientName}</span><span className="client-email">{invoice.clientEmail || "No email added"}</span></span></div></td><td className="amount">{money(invoice.amountAtomic, invoice.currency)}</td><td className={`due-date ${status === "overdue" ? "late" : ""}`}>{prettyDate(invoice.dueDate)}</td><td><span className={`status ${status}`}>{status === "paid" ? "Paid" : status === "review" ? "Review match" : status === "overdue" ? "Overdue" : "Awaiting"}</span></td><td className={`match-cell ${match ? "has-match" : ""}`}>{match && payment ? <>{match.status === "confirmed" ? "✓ Paid" : "✦ Suggested"} · {payment.payerName} <small>{prettyDate(payment.receivedAt)}</small></> : "Awaiting payment"}</td><td><button className="row-action" onClick={() => void copyInvoiceLink(invoice)}>Copy link</button></td></tr>;
               })}
             </tbody></table>
             {filteredInvoices.length === 0 && <div className="empty-state"><div className="empty-icon">{invoices.length ? "⌕" : "▤"}</div><strong>{invoices.length ? "No invoices found" : "Your first invoice starts here"}</strong><p>{invoices.length ? "Try a different search or status filter." : "Add one invoice or import a CSV to start matching incoming payments."}</p>{invoices.length === 0 && <button className="primary-button" onClick={() => setEntryMode("invoice")}>＋ Add your first invoice</button>}</div>}
@@ -636,7 +636,7 @@ export default function App() {
               {recentPayments.length === 0 ? <div className="empty-activity"><span>↙</span><strong>No payments yet</strong><small>Import a payments CSV or add a payment to check for invoice matches.</small><button className="text-button" onClick={() => setEntryMode("payment")}>＋ Add a payment</button></div> : recentPayments.map((payment) => {
                 const match = invoiceForPayment.get(payment.id);
                 const invoice = match && invoices.find((item) => item.id === match.invoiceId);
-                return <div className="activity-item" key={payment.id}><div className={`activity-icon ${match ? "" : "unmatched"}`}>{match?.status === "confirmed" ? "✓" : match?.status === "suggested" ? "✦" : "↗"}</div><div className="activity-copy"><strong>{payment.payerName}</strong><small>{invoice ? `${match?.status === "confirmed" ? "Matched" : "Suggested"} · ${invoice.invoiceNumber}` : payment.reference || "No invoice match yet"}</small>{payment.sourceTransactionId && <a className="transaction-link" href={`https://tronscan.org/#/transaction/${encodeURIComponent(payment.sourceTransactionId)}`} target="_blank" rel="noreferrer">View on TronScan ↗</a>}</div><div className="activity-trailing"><span className="activity-amount">{money(payment.amountAtomic, payment.currency)}</span>{!match && <button className="mini-action" onClick={() => startManualMatch(payment)}>Match</button>}</div></div>;
+                return <div className="activity-item" key={payment.id}><div className={`activity-icon ${match ? "" : "unmatched"}`}>{match?.status === "confirmed" ? "✓" : match?.status === "suggested" ? "✦" : "↗"}</div><div className="activity-copy"><strong>{payment.payerName}</strong><small>{invoice ? `${match?.status === "confirmed" ? "Paid" : "Suggested"} · ${invoice.invoiceNumber}` : payment.reference || "No invoice match yet"}</small></div><div className="activity-trailing"><span className="activity-amount">{money(payment.amountAtomic, payment.currency)}</span>{!match && <button className="mini-action" onClick={() => startManualMatch(payment)}>Match</button>}</div></div>;
               })}
             </section>
             <section className="attention"><div className="attention-count">{unmatchedPayments.length + suggestedMatches.length}</div><h3>{suggestedMatches.length ? `${suggestedMatches.length} possible match${suggestedMatches.length === 1 ? "" : "es"} need review` : unmatchedPayments.length ? `${unmatchedPayments.length} payment${unmatchedPayments.length === 1 ? "" : "s"} need${unmatchedPayments.length === 1 ? "s" : ""} a home` : invoices.length || payments.length ? "All payments are accounted for" : "Your workspace is ready"}</h3><p>{suggestedMatches.length ? "A payment looks like it belongs to an invoice. Confirm the suggestion to mark it paid, or dismiss it to find a different match." : unmatchedPayments.length ? `${money(unmatchedPayments[0]!.amountAtomic, unmatchedPayments[0]!.currency)} from ${unmatchedPayments[0]!.payerName} has no invoice match. Choose an exact amount match to reconcile it safely.` : invoices.length || payments.length ? "Every recorded payment is matched. Nice work keeping things tidy." : "Start with an invoice or payment. Cleva Match will look for a possible match."}</p>{suggestedMatches.length > 0 ? (() => { const match = suggestedMatches[0]!; const invoice = invoices.find((item) => item.id === match.invoiceId); const payment = payments.find((item) => item.id === match.paymentId); return invoice && payment ? <div className="review-actions"><button className="secondary-button" disabled={busy} onClick={() => void confirmMatch(payment.id, invoice.id)}>Confirm suggestion →</button><button className="attention-dismiss" disabled={busy} onClick={() => void dismissMatch(payment.id, invoice.id)}>Not this one</button></div> : null; })() : unmatchedPayments.length > 0 ? <button className="secondary-button" onClick={() => startManualMatch(unmatchedPayments[0]!)}>Review unmatched payment →</button> : <button className="secondary-button" onClick={() => setEntryMode("payment")}>＋ Add a payment</button>}</section>
@@ -654,11 +654,11 @@ export default function App() {
             <label>Invoice number<input required maxLength={60} value={invoiceDraft.invoiceNumber} onChange={(event) => setInvoiceDraft({ ...invoiceDraft, invoiceNumber: event.target.value })} placeholder="INV-2048" /></label>
             <label>Client name<input required maxLength={120} value={invoiceDraft.clientName} onChange={(event) => setInvoiceDraft({ ...invoiceDraft, clientName: event.target.value })} placeholder="Northstar Studio" /></label>
             <label>Client email <span className="optional-label">optional</span><input type="email" maxLength={254} value={invoiceDraft.clientEmail} onChange={(event) => setInvoiceDraft({ ...invoiceDraft, clientEmail: event.target.value })} placeholder="hello@client.com" /></label>
-            <div className="form-row"><label>Amount<input required type="number" min="0.000001" max="10000000" step="0.000001" value={invoiceDraft.amount} onChange={(event) => setInvoiceDraft({ ...invoiceDraft, amount: event.target.value })} placeholder="1,250.000000" /></label><label>Currency<input value="USDT" readOnly aria-label="Invoice currency" /></label></div>
+            <div className="form-row"><label>Amount<input required type="number" min="0.01" max="10000000" step={invoiceDraft.currency === "USD" ? "0.01" : "0.000001"} value={invoiceDraft.amount} onChange={(event) => setInvoiceDraft({ ...invoiceDraft, amount: event.target.value })} placeholder={invoiceDraft.currency === "USD" ? "1,250.00" : "1,250.000000"} /></label><label>Currency<select value={invoiceDraft.currency} onChange={(event) => setInvoiceDraft({ ...invoiceDraft, currency: event.target.value })}><option value="USD">USD</option><option value="USDT_TRC20">USDT · TRC-20</option><option value="USDT_ERC20">USDT · ERC-20</option></select></label></div>
             <label>Due date<input required type="date" value={invoiceDraft.dueDate} onChange={(event) => setInvoiceDraft({ ...invoiceDraft, dueDate: event.target.value })} /></label>
           </> : <>
             <label>Payer name<input required maxLength={120} value={paymentDraft.payerName} onChange={(event) => setPaymentDraft({ ...paymentDraft, payerName: event.target.value })} placeholder="Client or sender name" /></label>
-            <div className="form-row"><label>Amount<input required type="number" min="0.000001" max="10000000" step="0.000001" value={paymentDraft.amount} onChange={(event) => setPaymentDraft({ ...paymentDraft, amount: event.target.value })} placeholder="1,250.000000" /></label><label>Currency<input value="USDT" readOnly aria-label="Payment currency" /></label></div>
+            <div className="form-row"><label>Amount<input required type="number" min="0.01" max="10000000" step={paymentDraft.currency === "USD" ? "0.01" : "0.000001"} value={paymentDraft.amount} onChange={(event) => setPaymentDraft({ ...paymentDraft, amount: event.target.value })} placeholder={paymentDraft.currency === "USD" ? "1,250.00" : "1,250.000000"} /></label><label>Currency<select value={paymentDraft.currency} onChange={(event) => setPaymentDraft({ ...paymentDraft, currency: event.target.value })}><option value="USD">USD</option><option value="USDT_TRC20">USDT · TRC-20</option><option value="USDT_ERC20">USDT · ERC-20</option></select></label></div>
             <label>Payment date<input required type="date" value={paymentDraft.receivedAt} onChange={(event) => setPaymentDraft({ ...paymentDraft, receivedAt: event.target.value })} /></label>
             <label>Reference <span className="optional-label">optional</span><input maxLength={200} value={paymentDraft.reference} onChange={(event) => setPaymentDraft({ ...paymentDraft, reference: event.target.value })} placeholder="INV-2048 or payment note" /></label>
           </>}
@@ -669,9 +669,118 @@ export default function App() {
         {entryMode === "payment" && <button className="modal-import-link" onClick={() => { setEntryMode(null); paymentFileRef.current?.click(); }}>Have several? Import a payments CSV →</button>}
       </section></div>}
 
-      {selectedPayment && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedPayment(null); }}><section className="modal-card match-modal" role="dialog" aria-modal="true" aria-labelledby="match-title"><div className="modal-head"><div><p className="eyebrow">Reconcile payment</p><h2 id="match-title">Find this payment a home</h2><p>Choose an invoice with the same exact USDT amount.</p></div><button className="dialog-close" aria-label="Close" onClick={() => setSelectedPayment(null)}>×</button></div><div className="entry-form"><div className="payment-summary"><strong>{selectedPayment.payerName} · {money(selectedPayment.amountAtomic, selectedPayment.currency)}</strong><span>{prettyDate(selectedPayment.receivedAt)} · {selectedPayment.reference || "No reference"}</span></div><label>Open invoice<select value={selectedInvoiceId} onChange={(event) => setSelectedInvoiceId(event.target.value)} disabled={selectedPaymentCandidates.length === 0}><option value="">Choose an invoice...</option>{selectedPaymentCandidates.map((invoice) => <option key={invoice.id} value={invoice.id}>{invoice.invoiceNumber} · {invoice.clientName} · {money(invoice.amountAtomic, invoice.currency)}</option>)}</select></label><p className="form-helper">{selectedPaymentCandidates.length ? "Only open invoices with the exact on-chain amount are shown." : "No open invoice matches this amount. Add the right USDT invoice before reconciling."}</p><div className="modal-actions"><button className="secondary-button" onClick={() => setSelectedPayment(null)}>Not now</button><button className="primary-button" disabled={busy || !selectedInvoiceId} onClick={() => void confirmMatch(selectedPayment.id, selectedInvoiceId)}>{busy ? "Saving..." : "Match payment"}</button></div></div></section></div>}
+      {selectedPayment && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedPayment(null); }}><section className="modal-card match-modal" role="dialog" aria-modal="true" aria-labelledby="match-title"><div className="modal-head"><div><p className="eyebrow">Reconcile payment</p><h2 id="match-title">Find this payment a home</h2><p>Choose an invoice with the same currency and exact amount.</p></div><button className="dialog-close" aria-label="Close" onClick={() => setSelectedPayment(null)}>×</button></div><div className="entry-form"><div className="payment-summary"><strong>{selectedPayment.payerName} · {money(selectedPayment.amountAtomic, selectedPayment.currency)}</strong><span>{prettyDate(selectedPayment.receivedAt)} · {selectedPayment.reference || "No reference"}</span></div><label>Open invoice<select value={selectedInvoiceId} onChange={(event) => setSelectedInvoiceId(event.target.value)} disabled={selectedPaymentCandidates.length === 0}><option value="">Choose an invoice...</option>{selectedPaymentCandidates.map((invoice) => <option key={invoice.id} value={invoice.id}>{invoice.invoiceNumber} · {invoice.clientName} · {money(invoice.amountAtomic, invoice.currency)}</option>)}</select></label><p className="form-helper">{selectedPaymentCandidates.length ? "Only open invoices with the exact amount and currency are shown." : "No open invoice matches this amount. Add the right invoice before reconciling."}</p><div className="modal-actions"><button className="secondary-button" onClick={() => setSelectedPayment(null)}>Not now</button><button className="primary-button" disabled={busy || !selectedInvoiceId} onClick={() => void confirmMatch(selectedPayment.id, selectedInvoiceId)}>{busy ? "Saving..." : "Match payment"}</button></div></div></section></div>}
 
       <div className={`toast ${toast ? "show" : ""}`} role="status" aria-live="polite">{toast}</div>
     </div>
   );
+}
+
+interface PublicInvoiceData {
+  invoice: {
+    invoiceNumber: string;
+    amountAtomic: number;
+    currency: string;
+    dueDate: string;
+    paid: boolean;
+    workspaceName: string;
+  };
+  checkoutStatus: string;
+}
+
+function PublicInvoicePage({ publicId }: { publicId: string }) {
+  const [data, setData] = useState<PublicInvoiceData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [checkingPayment, setCheckingPayment] = useState(new URLSearchParams(window.location.search).get("payment") === "success");
+  const [error, setError] = useState("");
+
+  const reload = useCallback(async () => {
+    const result = await api<PublicInvoiceData>(`/api/public/invoices/${encodeURIComponent(publicId)}`);
+    setData(result);
+    if (result.invoice.paid) setCheckingPayment(false);
+  }, [publicId]);
+
+  useEffect(() => {
+    let active = true;
+    reload().catch((requestError: unknown) => {
+      if (active) setError(requestError instanceof Error ? requestError.message : "Could not load this invoice.");
+    }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [reload]);
+
+  useEffect(() => {
+    if (!checkingPayment) return;
+    const interval = window.setInterval(() => {
+      void reload().catch((requestError: unknown) => {
+        setError(requestError instanceof Error ? requestError.message : "Could not check payment status.");
+      });
+    }, 2500);
+    const timeout = window.setTimeout(() => setCheckingPayment(false), 30000);
+    return () => {
+      window.clearInterval(interval);
+      window.clearTimeout(timeout);
+    };
+  }, [checkingPayment, reload]);
+
+  async function payInvoice() {
+    setError("");
+    setBusy(true);
+    try {
+      const { checkoutUrl } = await api<{ checkoutUrl: string }>(
+        `/api/public/invoices/${encodeURIComponent(publicId)}/checkout`,
+        { method: "POST" },
+      );
+      if (!window.Bachs) {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = "https://checkout.bachs.io/bachs.js";
+          script.async = true;
+          script.onload = () => window.Bachs ? resolve() : reject(new Error("Bachs checkout did not initialize."));
+          script.onerror = () => reject(new Error("Could not load Bachs checkout. Check your connection and try again."));
+          document.head.appendChild(script);
+        });
+      }
+      if (!window.Bachs) throw new Error("Bachs checkout is unavailable. Please try again.");
+      if (!bachsInitialized) {
+        window.Bachs.Initialize({
+          onEvent: (event) => {
+            if (event.type === "checkout.completed") setCheckingPayment(true);
+          },
+        });
+        bachsInitialized = true;
+      }
+      await window.Bachs.Checkout.open({ checkoutUrl });
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not open checkout.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (loading) return <main className="public-invoice-page"><div className="public-invoice-card">Loading invoice…</div></main>;
+  if (!data) return <main className="public-invoice-page"><div className="public-invoice-card"><h1>Invoice unavailable</h1><p>{error || "This invoice link may have expired."}</p></div></main>;
+
+  const { invoice } = data;
+  return <main className="public-invoice-page">
+    <article className="public-invoice-card">
+      <a className="brand" href="/"><span className="brand-mark">c</span><span className="brand-name">cleva<span>match</span></span></a>
+      <p className="eyebrow">Invoice from</p>
+      <h1>{invoice.workspaceName}</h1>
+      <div className="public-invoice-number">{invoice.invoiceNumber}</div>
+      <div className="public-invoice-amount">{money(invoice.amountAtomic, invoice.currency)}</div>
+      <p className="public-invoice-due">Due {prettyDate(invoice.dueDate)}</p>
+      {invoice.paid
+        ? <div className="public-invoice-paid" role="status">✓ Payment confirmed. Thank you.</div>
+        : <button className="primary-button public-pay-button" disabled={busy} onClick={() => void payInvoice()}>{busy ? "Opening secure checkout…" : `Pay ${money(invoice.amountAtomic, invoice.currency)}`}</button>}
+      {checkingPayment && !invoice.paid && <p className="public-payment-check" role="status">Payment submitted. Waiting for secure confirmation…</p>}
+      {error && <p className="form-error" role="alert">{error}</p>}
+      <p className="public-invoice-footnote">Secure checkout powered by Bachs. Your card or payment details are handled by Bachs, not stored by Cleva Match.</p>
+    </article>
+  </main>;
+}
+
+export default function App() {
+  const payMatch = window.location.pathname.match(/^\/pay\/([a-f0-9]{32})$/i);
+  return payMatch ? <PublicInvoicePage publicId={payMatch[1]!} /> : <DashboardApp />;
 }

@@ -3,17 +3,25 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import cookieParser from "cookie-parser";
 import express, { type ErrorRequestHandler } from "express";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { migrate } from "drizzle-orm/libsql/migrator";
+import {
+  BachsError,
+  createBachsAccount,
+  createBachsCheckout,
+  createBachsOnboardingLink,
+  getBachsCapabilities,
+  verifyBachsSignature,
+} from "./bachs.js";
 import { clearSession, createWorkspaceAccount, issueSession, removeExpiredSessions, requireUser, verifyPassword } from "./auth.js";
 import { db, databaseClient } from "./db/client.js";
-import { invoices, matches, payments, users, wallets, workspaces } from "./db/schema.js";
+import { checkoutSessions, invoices, matches, payments, users, webhookEvents, workspaces } from "./db/schema.js";
 import { createManualMatch, dismissSuggestedMatch, getWorkspaceMatches, MatchError } from "./matching.js";
-import { isValidTronAddress, syncTronWallet, TronSyncError } from "./tron.js";
 import {
   atomicUnits,
   cents,
+  connectAccountSchema,
   invoiceImportSchema,
   invoiceInputSchema,
   loginSchema,
@@ -21,12 +29,21 @@ import {
   paymentImportSchema,
   paymentInputSchema,
   registerSchema,
-  walletInputSchema,
 } from "./validation.js";
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const isProduction = process.env.NODE_ENV === "production";
+
+function paymentAmountMatches(value: string, expectedAtomic: number, currency: string): boolean {
+  if (!/^\d+(?:\.\d+)?$/.test(value)) return false;
+  const [whole, fraction = ""] = value.split(".");
+  const precision = currency === "USD" ? 2 : 6;
+  if (fraction.length > precision) return false;
+  const observedAtomic = BigInt(whole!) * 1_000_000n +
+    BigInt(fraction.padEnd(precision, "0")) * BigInt(10 ** (6 - precision));
+  return observedAtomic === BigInt(expectedAtomic);
+}
 
 app.disable("x-powered-by");
 app.use((_request, response, next) => {
@@ -36,6 +53,116 @@ app.use((_request, response, next) => {
   response.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   if (isProduction) response.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   next();
+});
+app.post("/api/webhooks/bachs", express.raw({ type: "application/json", limit: "1mb" }), async (request, response) => {
+  if (!Buffer.isBuffer(request.body)) {
+    response.status(400).json({ error: "Expected a JSON webhook payload." });
+    return;
+  }
+  if (!verifyBachsSignature(request.body, request.get("x-bachs-signature-v2"))) {
+    response.status(401).json({ error: "Invalid webhook signature." });
+    return;
+  }
+
+  let event: {
+    id?: string;
+    type?: string;
+    created_at?: string;
+    organization_id?: string;
+    account?: string;
+    data?: {
+      checkout_id?: string;
+      payment_status?: string;
+      status?: string;
+      amount?: string;
+      currency?: string;
+      charge?: { id?: string; status?: string };
+    };
+  };
+  try {
+    event = JSON.parse(request.body.toString("utf8")) as typeof event;
+  } catch {
+    response.status(400).json({ error: "Invalid webhook JSON." });
+    return;
+  }
+  if (!event.id || !event.type || !event.data) {
+    response.status(400).json({ error: "Incomplete webhook event." });
+    return;
+  }
+  const [duplicate] = await db.select({ id: webhookEvents.id }).from(webhookEvents)
+    .where(eq(webhookEvents.id, event.id)).limit(1);
+  if (duplicate) {
+    response.status(200).json({ received: true, duplicate: true });
+    return;
+  }
+
+  const checkoutId = event.data.checkout_id;
+  if (checkoutId && event.type === "checkout.expired") {
+    await db.update(checkoutSessions).set({ status: "expired", updatedAt: new Date().toISOString() })
+      .where(eq(checkoutSessions.bachsCheckoutId, checkoutId));
+  }
+
+  const paid = event.type === "collection.succeeded" ||
+    (event.type === "checkout.completed" && event.data.payment_status?.toLowerCase() === "paid");
+  if (paid && checkoutId) {
+    const [session] = await db.select().from(checkoutSessions)
+      .where(eq(checkoutSessions.bachsCheckoutId, checkoutId)).limit(1);
+    if (session) {
+      const [[invoice], [workspace]] = await Promise.all([
+        db.select().from(invoices).where(eq(invoices.id, session.invoiceId)).limit(1),
+        db.select().from(workspaces).where(eq(workspaces.id, session.workspaceId)).limit(1),
+      ]);
+      const eventAccount = event.account || event.organization_id;
+      if (eventAccount && eventAccount !== workspace?.bachsAccountId) {
+        response.status(400).json({ error: "Webhook account does not match the invoice owner." });
+        return;
+      }
+      if (!invoice || !workspace || (event.data.amount && !paymentAmountMatches(event.data.amount, session.amountAtomic, session.currency)) ||
+        (event.data.currency && event.data.currency !== session.currency)) {
+        response.status(400).json({ error: "Payment details do not match the checkout." });
+        return;
+      }
+      const receivedAt = event.created_at && !Number.isNaN(Date.parse(event.created_at))
+        ? new Date(event.created_at).toISOString().slice(0, 10)
+        : new Date().toISOString().slice(0, 10);
+      const [createdPayment] = await db.insert(payments).values({
+        id: randomUUID(),
+        workspaceId: session.workspaceId,
+        payerName: invoice.clientName,
+        amountCents: invoice.amountCents,
+        amountAtomic: invoice.amountAtomic,
+        currency: invoice.currency,
+        reference: event.data.charge?.id || checkoutId,
+        source: "bachs",
+        bachsCheckoutId: checkoutId,
+        receivedAt,
+        createdAt: new Date().toISOString(),
+      }).onConflictDoNothing().returning({ id: payments.id });
+      const [payment] = createdPayment
+        ? [createdPayment]
+        : await db.select({ id: payments.id }).from(payments)
+          .where(eq(payments.bachsCheckoutId, checkoutId)).limit(1);
+      if (!payment) {
+        response.status(500).json({ error: "Could not record the confirmed payment." });
+        return;
+      }
+      await db.insert(matches).values({
+        id: randomUUID(),
+        workspaceId: session.workspaceId,
+        invoiceId: invoice.id,
+        paymentId: payment.id,
+        status: "confirmed",
+        source: "automatic",
+        createdAt: new Date().toISOString(),
+      }).onConflictDoNothing();
+      await db.update(checkoutSessions).set({ status: "paid", updatedAt: new Date().toISOString() })
+        .where(eq(checkoutSessions.id, session.id));
+    }
+  }
+
+  await db.insert(webhookEvents).values({ id: event.id, type: event.type, receivedAt: new Date().toISOString() })
+    .onConflictDoNothing();
+  response.status(200).json({ received: true });
 });
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
@@ -80,6 +207,127 @@ app.use("/api", (request, response, next) => {
 });
 
 app.get("/api/health", (_request, response) => response.json({ status: "ok" }));
+
+app.get<{ publicId: string }>("/api/public/invoices/:publicId", async (request, response) => {
+  const [invoice] = await db.select().from(invoices)
+    .where(eq(invoices.publicId, request.params.publicId)).limit(1);
+  if (!invoice) {
+    response.status(404).json({ error: "This invoice link is invalid or no longer available." });
+    return;
+  }
+  const [[workspace], [match], [latestCheckout]] = await Promise.all([
+    db.select({ id: workspaces.id, name: workspaces.name }).from(workspaces)
+      .where(eq(workspaces.id, invoice.workspaceId)).limit(1),
+    db.select({ status: matches.status }).from(matches).where(eq(matches.invoiceId, invoice.id)).limit(1),
+    db.select({ status: checkoutSessions.status }).from(checkoutSessions)
+      .where(eq(checkoutSessions.invoiceId, invoice.id)).orderBy(desc(checkoutSessions.createdAt)).limit(1),
+  ]);
+  if (!workspace) {
+    response.status(404).json({ error: "This invoice is no longer available." });
+    return;
+  }
+  response.json({
+    invoice: {
+      invoiceNumber: invoice.invoiceNumber,
+      amountAtomic: invoice.amountAtomic,
+      currency: invoice.currency,
+      dueDate: invoice.dueDate,
+      paid: match?.status === "confirmed",
+      workspaceName: workspace.name,
+    },
+    checkoutStatus: latestCheckout?.status || "unpaid",
+  });
+});
+
+app.post<{ publicId: string }>("/api/public/invoices/:publicId/checkout", rateLimit, async (request, response) => {
+  const [invoice] = await db.select().from(invoices)
+    .where(eq(invoices.publicId, request.params.publicId)).limit(1);
+  if (!invoice) {
+    response.status(404).json({ error: "This invoice link is invalid or no longer available." });
+    return;
+  }
+  const [[workspace], [match]] = await Promise.all([
+    db.select().from(workspaces).where(eq(workspaces.id, invoice.workspaceId)).limit(1),
+    db.select({ status: matches.status }).from(matches).where(eq(matches.invoiceId, invoice.id)).limit(1),
+  ]);
+  if (match?.status === "confirmed") {
+    response.status(409).json({ error: "This invoice has already been paid." });
+    return;
+  }
+  if (!workspace?.bachsAccountId) {
+    response.status(409).json({ error: "The freelancer has not connected payments yet." });
+    return;
+  }
+  const [openCheckout] = await db.select().from(checkoutSessions).where(and(
+    eq(checkoutSessions.invoiceId, invoice.id),
+    eq(checkoutSessions.status, "open"),
+  )).limit(1);
+  if (openCheckout) {
+    if (!openCheckout.expiresAt || Date.parse(openCheckout.expiresAt) > Date.now()) {
+      response.json({ checkoutUrl: openCheckout.checkoutUrl });
+      return;
+    }
+    await db.update(checkoutSessions).set({ status: "expired", updatedAt: new Date().toISOString() })
+      .where(eq(checkoutSessions.id, openCheckout.id));
+  }
+
+  const capabilityResult = await getBachsCapabilities(workspace.bachsAccountId);
+  const requiredCapability = invoice.currency === "USD" ? "card_collection" : "crypto";
+  if (!capabilityResult.items.some((item) => item.name === requiredCapability && item.status === "active")) {
+    response.status(409).json({
+      error: `The freelancer's Bachs account is not yet enabled to accept ${invoice.currency} payments.`,
+    });
+    return;
+  }
+
+  const precision = invoice.currency === "USD" ? 2 : 6;
+  const grossMinor = invoice.currency === "USD" ? invoice.amountCents : invoice.amountAtomic;
+  const feeMinor = Math.floor((grossMinor * 35 + 500) / 1000);
+  if (feeMinor <= 0 || feeMinor >= grossMinor) {
+    response.status(400).json({ error: "This invoice amount is too small to process with the platform fee." });
+    return;
+  }
+  const scale = 10 ** precision;
+  const amount = (invoice.amountAtomic / 1_000_000).toFixed(precision);
+  const platformFee = (feeMinor / scale).toFixed(precision);
+  const baseUrl = process.env.APP_BASE_URL ||
+    (isProduction ? `https://${request.get("host")}` : `${request.protocol}://${request.get("host")}`);
+  const publicInvoiceUrl = `${baseUrl}/pay/${encodeURIComponent(invoice.publicId)}`;
+  const attemptId = randomUUID();
+  const checkout = await createBachsCheckout({
+    accountId: workspace.bachsAccountId,
+    amount,
+    currency: invoice.currency as "USD" | "USDT_TRC20" | "USDT_ERC20",
+    platformFee,
+    email: invoice.clientEmail,
+    customerName: invoice.clientName,
+    successUrl: `${publicInvoiceUrl}?payment=success`,
+    cancelUrl: publicInvoiceUrl,
+    idempotencyKey: `cleva-checkout-${attemptId}`,
+  });
+  if (!checkout.checkout_id || !checkout.checkout_url ||
+    !/^https:\/\/checkout\.bachs\.io\//.test(checkout.checkout_url)) {
+    throw new BachsError("Bachs returned an invalid checkout session.");
+  }
+  const now = new Date().toISOString();
+  await db.insert(checkoutSessions).values({
+    id: attemptId,
+    workspaceId: workspace.id,
+    invoiceId: invoice.id,
+    bachsCheckoutId: checkout.checkout_id,
+    checkoutUrl: checkout.checkout_url,
+    amountAtomic: invoice.amountAtomic,
+    platformFee,
+    currency: invoice.currency,
+    expiresAt: checkout.expires_at && !Number.isNaN(Date.parse(checkout.expires_at))
+      ? new Date(checkout.expires_at).toISOString()
+      : null,
+    status: "open",
+    createdAt: now,
+    updatedAt: now,
+  });
+  response.status(201).json({ checkoutUrl: checkout.checkout_url });
+});
 
 app.post("/api/auth/register", rateLimit, async (request, response) => {
   const parsed = registerSchema.safeParse(request.body);
@@ -138,16 +386,69 @@ app.get("/api/me", requireUser, async (request, response) => {
 
 app.use("/api", requireUser);
 
+app.post("/api/connect/onboarding", async (request, response) => {
+  const parsed = connectAccountSchema.safeParse(request.body);
+  if (!parsed.success) {
+    response.status(400).json({ error: "Enter a valid two-letter country code and account type." });
+    return;
+  }
+  const [workspace] = await db.select().from(workspaces)
+    .where(eq(workspaces.id, request.user!.workspaceId)).limit(1);
+  if (!workspace) {
+    response.status(404).json({ error: "Your workspace could not be found." });
+    return;
+  }
+
+  let accountId = workspace.bachsAccountId;
+  if (!accountId) {
+    const account = await createBachsAccount({
+      email: request.user!.email,
+      displayName: workspace.name,
+      country: parsed.data.country,
+      entityType: parsed.data.entityType,
+    });
+    accountId = account.id;
+    await db.update(workspaces).set({
+      bachsAccountId: account.id,
+      bachsAccountStatus: "onboarding",
+      bachsCountry: parsed.data.country,
+    }).where(eq(workspaces.id, workspace.id));
+  }
+  const baseUrl = process.env.APP_BASE_URL ||
+    (isProduction ? `https://${request.get("host")}` : `${request.protocol}://${request.get("host")}`);
+  const link = await createBachsOnboardingLink(
+    accountId,
+    `${baseUrl}/?connect=refresh`,
+    `${baseUrl}/?connect=done`,
+  );
+  response.json({ onboardingUrl: link.url, accountId });
+});
+
+app.get("/api/connect/status", async (request, response) => {
+  const [workspace] = await db.select().from(workspaces)
+    .where(eq(workspaces.id, request.user!.workspaceId)).limit(1);
+  if (!workspace?.bachsAccountId) {
+    response.json({ connected: false, status: "not_connected", capabilities: [] });
+    return;
+  }
+  const result = await getBachsCapabilities(workspace.bachsAccountId);
+  const required = ["card_collection", "crypto", "payouts", "transfers"];
+  const ready = required.every((name) => result.items.some((item) => item.name === name && item.status === "active"));
+  const status = ready ? "ready" : "onboarding";
+  await db.update(workspaces).set({ bachsAccountStatus: status })
+    .where(eq(workspaces.id, workspace.id));
+  response.json({ connected: true, status, capabilities: result.items });
+});
+
 app.get("/api/dashboard", async (request, response) => {
   const workspaceId = request.user!.workspaceId;
-  const [workspaceInvoices, workspacePayments, workspaceMatches, [workspace], workspaceWallets] = await Promise.all([
+  const [workspaceInvoices, workspacePayments, workspaceMatches, [workspace]] = await Promise.all([
     db.select().from(invoices).where(eq(invoices.workspaceId, workspaceId)),
     db.select().from(payments).where(eq(payments.workspaceId, workspaceId)),
     getWorkspaceMatches(workspaceId),
     db.select().from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1),
-    db.select().from(wallets).where(eq(wallets.workspaceId, workspaceId)),
   ]);
-  response.json({ invoices: workspaceInvoices, payments: workspacePayments, matches: workspaceMatches, workspace: workspace || null, wallets: workspaceWallets });
+  response.json({ invoices: workspaceInvoices, payments: workspacePayments, matches: workspaceMatches, workspace: workspace || null });
 });
 
 app.post("/api/invoices", async (request, response) => {
@@ -174,6 +475,7 @@ app.post("/api/invoices", async (request, response) => {
     amountAtomic: atomicUnits(input.amount),
     currency: input.currency,
     dueDate: input.dueDate,
+    publicId: randomUUID().replace(/-/g, ""),
     createdAt: new Date().toISOString(),
   };
   await db.insert(invoices).values(record);
@@ -202,6 +504,7 @@ app.post("/api/invoices/import", async (request, response) => {
       amountAtomic: atomicUnits(input.amount),
       currency: input.currency,
       dueDate: input.dueDate,
+      publicId: randomUUID().replace(/-/g, ""),
       createdAt: new Date().toISOString(),
     };
     if (seenNumbers.has(input.invoiceNumber)) continue;
@@ -293,67 +596,6 @@ app.post("/api/payments/import", async (request, response) => {
   response.status(201).json({ imported: insertedCount, skipped: parsed.data.payments.length - insertedCount });
 });
 
-app.post("/api/wallets", async (request, response) => {
-  const parsed = walletInputSchema.safeParse(request.body);
-  if (!parsed.success) {
-    response.status(400).json({ error: parsed.error.issues[0]?.message || "Enter a wallet label and address." });
-    return;
-  }
-  if (!isValidTronAddress(parsed.data.address)) {
-    response.status(400).json({ error: "Enter a valid TRON mainnet wallet address." });
-    return;
-  }
-  const workspaceId = request.user!.workspaceId;
-  const [existing] = await db.select({ id: wallets.id }).from(wallets).where(and(
-    eq(wallets.workspaceId, workspaceId),
-    eq(wallets.address, parsed.data.address),
-  )).limit(1);
-  if (existing) {
-    response.status(409).json({ error: "That wallet is already connected to this workspace." });
-    return;
-  }
-  const wallet = {
-    id: randomUUID(),
-    workspaceId,
-    label: parsed.data.label,
-    address: parsed.data.address,
-    lastSyncedAt: null,
-    lastSyncedTimestamp: 0,
-    syncCursor: null,
-    historyComplete: false,
-    createdAt: new Date().toISOString(),
-  };
-  await db.insert(wallets).values(wallet);
-  response.status(201).json({ wallet });
-});
-
-app.delete("/api/wallets/:walletId", async (request, response) => {
-  const workspaceId = request.user!.workspaceId;
-  const [wallet] = await db.select({ id: wallets.id }).from(wallets).where(and(
-    eq(wallets.id, request.params.walletId),
-    eq(wallets.workspaceId, workspaceId),
-  )).limit(1);
-  if (!wallet) {
-    response.status(404).json({ error: "Wallet not found in your workspace." });
-    return;
-  }
-  await db.delete(wallets).where(eq(wallets.id, wallet.id));
-  response.status(204).end();
-});
-
-app.post<{ walletId: string }>("/api/wallets/:walletId/sync", rateLimit, async (request, response) => {
-  const [wallet] = await db.select().from(wallets).where(and(
-    eq(wallets.id, request.params.walletId),
-    eq(wallets.workspaceId, request.user!.workspaceId),
-  )).limit(1);
-  if (!wallet) {
-    response.status(404).json({ error: "Wallet not found in your workspace." });
-    return;
-  }
-  const result = await syncTronWallet(wallet);
-  response.json(result);
-});
-
 app.post("/api/payments/:paymentId/match", async (request, response) => {
   const parsed = matchInputSchema.safeParse(request.body);
   if (!parsed.success) {
@@ -435,7 +677,7 @@ if (isProduction && !process.env.VERCEL) {
 }
 
 const errorHandler: ErrorRequestHandler = (error: unknown, _request, response, _next) => {
-  if (error instanceof TronSyncError) {
+  if (error instanceof BachsError) {
     response.status(error.status).json({ error: error.message });
     return;
   }
