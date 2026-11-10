@@ -573,7 +573,7 @@ function DashboardApp() {
   const confirmedMatches = matches.filter((match) => match.status === "confirmed");
   const recentPayments = [...payments].sort((a, b) => b.receivedAt.localeCompare(a.receivedAt)).slice(0, 5);
 
-  if (!user || !data) {
+  if (!user) {
     if (!authMode) return <LandingPage onGetStarted={() => setAuthMode("register")} onSignIn={() => setAuthMode("login")} />;
     return <><AuthScreen initialMode={authMode} onBack={() => setAuthMode(null)} onAuthenticated={(result) => void handleAuthenticated(result)} />{fatalError && <div className="toast show" role="alert">{fatalError}</div>}</>;
   }
@@ -597,7 +597,12 @@ function DashboardApp() {
         </div>
       </aside>
 
-      <main className="main-area" id="overview">
+      {loading || !data ? (
+        <main className="main-area" id="overview">
+          <div className="loading-screen"><div className="loading-spinner" /><p>Loading your workspace...</p></div>
+        </main>
+      ) : (
+        <main className="main-area" id="overview">
         <header className="topbar"><div className="topbar-left"><button className="icon-button mobile-menu-button" onClick={() => setMobileMenuOpen(true)} aria-label="Open menu">☰</button><div className="breadcrumb">Workspace <span>/</span> <strong>Overview</strong></div></div><div className="top-actions"><span className="connected-badge"><span /> Your workspace</span><button className="icon-button" title="Help" onClick={() => showToast("Create an itemized invoice, then copy and share its payment link with your client.")}>?</button></div></header>
 
         <div className="content">
@@ -660,6 +665,7 @@ function DashboardApp() {
           <div className="footer-note">SettleMe · Crypto invoice management</div>
         </div>
       </main>
+      )}
 
       <input ref={invoiceFileRef} type="file" accept=".csv,text/csv" className="visually-hidden" onChange={(event) => void importCsv(event)} />
       {entryMode && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setEntryMode(null); setModalError(""); } }}><section className="modal-card invoice-modal" role="dialog" aria-modal="true" aria-labelledby="entry-title">
