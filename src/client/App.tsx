@@ -97,6 +97,49 @@ interface ImportedInvoice {
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
+
+const CACHE_KEY = "settleme_cache";
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+interface CachedDashboard {
+  user: User;
+  workspace: Workspace;
+  data: DashboardData;
+  timestamp: number;
+}
+
+function getCachedData(): CachedDashboard | null {
+  if (typeof localStorage === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const parsed: CachedDashboard = JSON.parse(raw);
+    if (Date.now() - parsed.timestamp > CACHE_TTL) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedData(user: User | null, workspace: Workspace | null, data: DashboardData): void {
+  if (!user || !workspace) return;
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ user, workspace, data, timestamp: Date.now() }));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function clearCachedData(): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.removeItem(CACHE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 const cryptoCurrencies = [
   { value: "USDT_TRC20", label: "USDT · TRON (TRC-20)" },
   { value: "USDT_BEP20", label: "USDT · BNB Smart Chain (BEP-20)" },
@@ -272,23 +315,55 @@ function DashboardApp() {
   const toastTimer = useRef<number | undefined>(undefined);
 
   const reload = useCallback(async () => {
-    const dashboard = await api<DashboardData>("/api/dashboard", {}, 20_000);
+    const dashboard = await api<DashboardData>("/api/dashboard", {}, 30_000, 3);
     setData(dashboard);
     setWorkspace(dashboard.workspace);
-  }, []);
+    if (user) setCachedData(user, dashboard.workspace, dashboard);
+  }, [user]);
 
   useEffect(() => {
     let active = true;
-    api<ApiMe>("/api/me").then((result) => {
-      if (!active) return;
-      setLoading(true);
-      setUser(result.user);
-      setWorkspace(result.workspace);
-      return api<DashboardData>("/api/dashboard", {}, 20_000).then((dashboard) => { if (active) setData(dashboard); });
-    }).catch((error: unknown) => {
-      if (error instanceof ApiError && error.status === 401) return;
-      if (active) setFatalError(error instanceof Error ? error.message : "Could not load your workspace.");
-    }).finally(() => { if (active) setLoading(false); });
+
+    // Restore from cache immediately so the dashboard appears instantly,
+    // then refresh in the background.
+    const cached = getCachedData();
+    if (cached && !user) {
+      setUser(cached.user);
+      setWorkspace(cached.workspace);
+      setData(cached.data);
+    }
+
+    async function load() {
+      try {
+        const result = await api<ApiMe>("/api/me", {}, 10_000, 3);
+        if (!active) return;
+        setUser(result.user);
+        setWorkspace(result.workspace);
+
+        const dashboard = await api<DashboardData>("/api/dashboard", {}, 30_000, 3);
+        if (!active) return;
+        setData(dashboard);
+        setWorkspace(dashboard.workspace);
+        setCachedData(result.user, dashboard.workspace, dashboard);
+      } catch (error: unknown) {
+        if (error instanceof ApiError && error.status === 401) {
+          // Session invalid — clear cache and show login screen
+          clearCachedData();
+          setUser(null);
+          setWorkspace(null);
+          setData(null);
+          return;
+        }
+        // Only show fatal error if we have no cached data to fall back on
+        if (active && !data) {
+          setFatalError(error instanceof Error ? error.message : "Could not load your workspace.");
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    load();
     return () => { active = false; };
   }, []);
 
@@ -385,6 +460,21 @@ function DashboardApp() {
     setLoading(true);
     try {
       await reload();
+    } catch (error) {
+      setFatalError(error instanceof Error ? error.message : "Could not load your workspace.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function retryLoad() {
+    setFatalError("");
+    setLoading(true);
+    try {
+      const dashboard = await api<DashboardData>("/api/dashboard", {}, 30_000, 3);
+      setData(dashboard);
+      setWorkspace(dashboard.workspace);
+      if (user) setCachedData(user, dashboard.workspace, dashboard);
     } catch (error) {
       setFatalError(error instanceof Error ? error.message : "Could not load your workspace.");
     } finally {
@@ -604,7 +694,7 @@ function DashboardApp() {
           {!data && !fatalError ? (
             <div className="loading-screen"><div className="loading-spinner" /><p>Loading your workspace...</p></div>
           ) : fatalError ? (
-            <div className="empty-state"><div className="empty-icon">⚠</div><strong>Could not load your workspace.</strong><p>{fatalError}</p><button className="primary-button" onClick={() => { setFatalError(""); setLoading(true); void reload().finally(() => setLoading(false)); }}>Try again</button></div>
+            <div className="empty-state"><div className="empty-icon">⚠</div><strong>Could not load your workspace.</strong><p>{fatalError}</p><button className="primary-button" onClick={retryLoad}>Try again</button></div>
           ) : (
             <>
               <section className="welcome">
