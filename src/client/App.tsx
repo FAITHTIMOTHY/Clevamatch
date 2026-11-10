@@ -201,12 +201,12 @@ function AuthScreen({ onAuthenticated, initialMode, onBack }: { onAuthenticated:
         result = await api<ApiMe>("/api/auth/register", {
           method: "POST",
           body: JSON.stringify({ name, companyName, email, password }),
-        }, 20_000);
+        }, 30_000);
       } else {
         result = await api<ApiMe>("/api/auth/login", {
           method: "POST",
           body: JSON.stringify({ email, password }),
-        }, 20_000);
+        }, 30_000);
       }
       onAuthenticated(result);
     } catch (requestError) {
