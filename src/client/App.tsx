@@ -292,6 +292,30 @@ function DashboardApp() {
     return () => { active = false; };
   }, []);
 
+  const authHistoryPushed = useRef(false);
+
+  // Make the browser back button return to the landing page instead of
+  // leaving the site entirely while the user is signing in / registering.
+  useEffect(() => {
+    if (!authMode) {
+      authHistoryPushed.current = false;
+      return;
+    }
+
+    if (!authHistoryPushed.current) {
+      window.history.pushState({ auth: true }, "");
+      authHistoryPushed.current = true;
+    }
+
+    function onPopState() {
+      setAuthMode(null);
+      authHistoryPushed.current = false;
+    }
+
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [authMode]);
+
   useEffect(() => {
     if (loading || user || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
