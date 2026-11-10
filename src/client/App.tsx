@@ -450,11 +450,14 @@ function DashboardApp() {
   const invoices = data?.invoices || [];
   const payments = data?.payments || [];
   const matches = data?.matches || [];
-  const enabledCurrencyCodes = data?.availableInvoiceCurrencies || [];
+  const enabledCurrencyCodes: string[] = Array.isArray(data?.availableInvoiceCurrencies)
+    ? data.availableInvoiceCurrencies
+    : [cryptoCurrencies[0]!.value];
   const invoiceCurrencyOptions = useMemo(
     () => cryptoCurrencies.filter((currency) => enabledCurrencyCodes.includes(currency.value)),
     [enabledCurrencyCodes],
   );
+
   useEffect(() => {
     if (invoiceCurrencyOptions.length && !invoiceCurrencyOptions.some((currency) => currency.value === invoiceDraft.currency)) {
       setInvoiceDraft((draft) => ({ ...draft, currency: invoiceCurrencyOptions[0]!.value }));
