@@ -32,7 +32,9 @@ import {
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
-const isProduction = process.env.NODE_ENV === "production";
+// Treat Render (and any host that sets NODE_ENV=production) as production so we
+// bind to 0.0.0.0, serve the built static files, and use HTTPS/secure cookies.
+const isProduction = process.env.NODE_ENV === "production" || process.env.RENDER === "true";
 
 function paymentAmountMatches(value: string, expectedAtomic: number, currency: string): boolean {
   if (!/^\d+(?:\.\d+)?$/.test(value)) return false;
