@@ -597,16 +597,17 @@ function DashboardApp() {
         </div>
       </aside>
 
-      {loading || !data ? (
-        <main className="main-area" id="overview">
-          <div className="loading-screen"><div className="loading-spinner" /><p>Loading your workspace...</p></div>
-        </main>
-      ) : (
-        <main className="main-area" id="overview">
+      <main className="main-area" id="overview">
         <header className="topbar"><div className="topbar-left"><button className="icon-button mobile-menu-button" onClick={() => setMobileMenuOpen(true)} aria-label="Open menu">☰</button><div className="breadcrumb">Workspace <span>/</span> <strong>Overview</strong></div></div><div className="top-actions"><span className="connected-badge"><span /> Your workspace</span><button className="icon-button" title="Help" onClick={() => showToast("Create an itemized invoice, then copy and share its payment link with your client.")}>?</button></div></header>
 
         <div className="content">
-          <section className="welcome">
+          {!data && !fatalError ? (
+            <div className="loading-screen"><div className="loading-spinner" /><p>Loading your workspace...</p></div>
+          ) : fatalError ? (
+            <div className="empty-state"><div className="empty-icon">⚠</div><strong>Could not load your workspace.</strong><p>{fatalError}</p><button className="primary-button" onClick={() => { setFatalError(""); setLoading(true); void reload().finally(() => setLoading(false)); }}>Try again</button></div>
+          ) : (
+            <>
+              <section className="welcome">
             <div><p className="eyebrow">{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</p><h1>Good morning, {user.name.split(" ")[0]} <span aria-hidden="true">☀️</span></h1><p className="subtitle">Create and share client invoices, then track every payment from sent to paid.</p></div>
             <div className="welcome-actions"><button className="primary-button" onClick={() => setEntryMode("invoice")}><span>＋</span> Create invoice</button></div>
           </section>
@@ -663,9 +664,10 @@ function DashboardApp() {
             <section className="attention"><div className="attention-count">{invoices.filter((invoice) => paymentForInvoice.get(invoice.id)?.status !== "confirmed").length}</div><h3>{!invoices.length ? "Create your first client invoice" : invoices.some((invoice) => paymentForInvoice.get(invoice.id)?.status !== "confirmed") ? "Invoices awaiting payment" : "Every invoice is paid"}</h3><p>{!invoices.length ? "Add an invoice, connect your payout account, and share its payment link with your client." : invoices.some((invoice) => paymentForInvoice.get(invoice.id)?.status !== "confirmed") ? "Share each invoice’s payment link and follow its status here. Payments are confirmed before invoices are marked paid." : "Your client payments are confirmed. Create another invoice whenever you’re ready."}</p><button className="secondary-button" onClick={() => invoices.length ? document.getElementById("invoices")?.scrollIntoView({ behavior: "smooth" }) : setEntryMode("invoice")}>{invoices.length ? "View client invoices →" : "＋ Create your first invoice"}</button></section>
           </div>
           <div className="footer-note">SettleMe · Crypto invoice management</div>
+            </>
+          )}
         </div>
       </main>
-      )}
 
       <input ref={invoiceFileRef} type="file" accept=".csv,text/csv" className="visually-hidden" onChange={(event) => void importCsv(event)} />
       {entryMode && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setEntryMode(null); setModalError(""); } }}><section className="modal-card invoice-modal" role="dialog" aria-modal="true" aria-labelledby="entry-title">
