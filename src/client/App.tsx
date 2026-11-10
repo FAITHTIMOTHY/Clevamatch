@@ -573,9 +573,6 @@ function DashboardApp() {
   const confirmedMatches = matches.filter((match) => match.status === "confirmed");
   const recentPayments = [...payments].sort((a, b) => b.receivedAt.localeCompare(a.receivedAt)).slice(0, 5);
 
-  if (loading) {
-    return <main className="loading-screen"><div className="brand"><span className="brand-mark">s</span><span className="brand-name">Settle<span>Me</span></span></div><div className="loading-spinner" /><p>Getting your workspace ready...</p></main>;
-  }
   if (!user || !data) {
     if (!authMode) return <LandingPage onGetStarted={() => setAuthMode("register")} onSignIn={() => setAuthMode("login")} />;
     return <><AuthScreen initialMode={authMode} onBack={() => setAuthMode(null)} onAuthenticated={(result) => void handleAuthenticated(result)} />{fatalError && <div className="toast show" role="alert">{fatalError}</div>}</>;
