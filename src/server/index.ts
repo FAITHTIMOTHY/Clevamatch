@@ -493,34 +493,74 @@ app.get("/api/connect/status", async (request, response) => {
 
 app.get("/api/dashboard", async (request, response) => {
   const workspaceId = request.user!.workspaceId;
-  const [workspaceInvoices, workspacePayments, workspaceMatches, workspaceItems, [workspace]] = await Promise.all([
-    db.select().from(invoices).where(eq(invoices.workspaceId, workspaceId)),
-    db.select().from(payments).where(and(eq(payments.workspaceId, workspaceId), eq(payments.source, "bachs"))),
-    getWorkspaceMatches(workspaceId),
-    db.select().from(invoiceItems).innerJoin(invoices, eq(invoiceItems.invoiceId, invoices.id))
-      .where(eq(invoices.workspaceId, workspaceId)).orderBy(asc(invoiceItems.position)),
-    db.select().from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1),
+
+  // Run each query independently so a slow/failing one from a
+  // long-distance connection (Nigeria → EU) doesn't kill the whole dashboard.
+  async function safeQuery(fn: () => Promise<unknown>, fallback: unknown) {
+    try {
+      return await fn();
+    } catch (error) {
+      console.error("Dashboard query failed:", error);
+      return fallback;
+    }
+  }
+
+  const [
+    workspaceInvoices,
+    workspacePayments,
+    workspaceMatches,
+    workspaceItems,
+    workspaceResult,
+  ] = await Promise.all([
+    safeQuery(() => db.select().from(invoices).where(eq(invoices.workspaceId, workspaceId)), []),
+    safeQuery(
+      () =>
+        db.select().from(payments).where(
+          and(eq(payments.workspaceId, workspaceId), eq(payments.source, "bachs")),
+        ),
+      [],
+    ),
+    safeQuery(() => getWorkspaceMatches(workspaceId), []),
+    safeQuery(
+      () =>
+        db.select()
+          .from(invoiceItems)
+          .innerJoin(invoices, eq(invoiceItems.invoiceId, invoices.id))
+          .where(eq(invoices.workspaceId, workspaceId))
+          .orderBy(asc(invoiceItems.position)),
+      [],
+    ),
+    safeQuery(() => db.select().from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1), []),
   ]);
-  const itemsByInvoice = new Map<string, typeof workspaceItems>();
-  for (const row of workspaceItems) {
+
+  const invoicesList = Array.isArray(workspaceInvoices) ? workspaceInvoices : [];
+  const paymentsList = Array.isArray(workspacePayments) ? workspacePayments : [];
+  const matchesList = Array.isArray(workspaceMatches) ? workspaceMatches : [];
+  const itemsList = Array.isArray(workspaceItems) ? (workspaceItems as any[]) : [];
+  const workspaceRow =
+    Array.isArray(workspaceResult) && workspaceResult.length > 0 ? workspaceResult[0] : null;
+
+  const itemsByInvoice = new Map<string, typeof itemsList[number]>();
+  for (const row of itemsList) {
     const items = itemsByInvoice.get(row.invoice_items.invoiceId) || [];
     items.push(row);
     itemsByInvoice.set(row.invoice_items.invoiceId, items);
   }
-  const invoiceRows = workspaceInvoices.map((invoice) => ({
+  const invoiceRows = invoicesList.map((invoice) => ({
     ...invoice,
-    items: (itemsByInvoice.get(invoice.id) || []).map(({ invoice_items: item }) => ({
+    items: (itemsByInvoice.get(invoice.id) || []).map(({ invoice_items: item }: any) => ({
       ...item,
       quantity: item.quantityMilli / 1_000,
     })),
   }));
-  const confirmedPayments = new Set(workspacePayments.map((payment) => payment.id));
+  const confirmedPayments = new Set(paymentsList.map((payment) => payment.id));
   response.json({
     invoices: invoiceRows,
-    payments: workspacePayments,
-    matches: workspaceMatches.filter((match) => match.status === "confirmed" && confirmedPayments.has(match.paymentId)),
+    payments: paymentsList,
+    matches: matchesList
+      .filter((match) => match.status === "confirmed" && confirmedPayments.has(match.paymentId)),
     availableInvoiceCurrencies: getEnabledBachsCryptoCurrencies(),
-    workspace: workspace || null,
+    workspace: workspaceRow || null,
   });
 });
 
