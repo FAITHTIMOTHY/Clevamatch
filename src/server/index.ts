@@ -695,8 +695,16 @@ export default app;
 
 if (!process.env.VERCEL) {
   const host = process.env.HOST || (isProduction ? "0.0.0.0" : "127.0.0.1");
-  const server = app.listen(port, host, () => {
+  const server = app.listen(port, host, async () => {
     console.log(`SettleMe is running at http://${host}:${port}`);
+    // Warm up the database connection pool so the first request doesn't
+    // pay the SSL handshake + connection setup penalty from Nigeria to EU.
+    try {
+      await databaseClient`SELECT 1`;
+      console.log("Database connection pool warmed up.");
+    } catch (error) {
+      console.error("Database warm-up failed:", error);
+    }
   });
 
   const sessionCleanup = setInterval(() => {

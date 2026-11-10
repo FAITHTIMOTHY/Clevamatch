@@ -335,16 +335,19 @@ function DashboardApp() {
 
     async function load() {
       try {
-        const result = await api<ApiMe>("/api/me", {}, 10_000, 3);
-        if (!active) return;
-        setUser(result.user);
-        setWorkspace(result.workspace);
+        // Fetch session user and dashboard data in parallel — saves one
+        // full round trip to the remote database on every page load.
+        const [meResult, dashboardResult] = await Promise.all([
+          api<ApiMe>("/api/me", {}, 10_000, 3),
+          api<DashboardData>("/api/dashboard", {}, 30_000, 3),
+        ]);
 
-        const dashboard = await api<DashboardData>("/api/dashboard", {}, 30_000, 3);
         if (!active) return;
-        setData(dashboard);
-        setWorkspace(dashboard.workspace);
-        setCachedData(result.user, dashboard.workspace, dashboard);
+        setUser(meResult.user);
+        setWorkspace(meResult.workspace);
+        setData(dashboardResult);
+        setWorkspace(dashboardResult.workspace);
+        setCachedData(meResult.user, dashboardResult.workspace, dashboardResult);
       } catch (error: unknown) {
         if (error instanceof ApiError && error.status === 401) {
           // Session invalid — clear cache and show login screen
@@ -457,14 +460,10 @@ function DashboardApp() {
     setUser(result.user);
     setWorkspace(result.workspace);
     setFatalError("");
-    setLoading(true);
-    try {
-      await reload();
-    } catch (error) {
+    // Dashboard shell already shows immediately — fetch data in background.
+    void reload().catch((error) => {
       setFatalError(error instanceof Error ? error.message : "Could not load your workspace.");
-    } finally {
-      setLoading(false);
-    }
+    });
   }
 
   async function retryLoad() {
