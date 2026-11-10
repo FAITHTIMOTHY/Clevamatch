@@ -533,6 +533,14 @@ app.get("/api/dashboard", async (request, response) => {
     safeQuery(() => db.select().from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1), []),
   ]);
 
+  // Track whether any query failed so the client can show degraded state.
+  const allQueriesFailed =
+    !Array.isArray(workspaceInvoices) &&
+    !Array.isArray(workspacePayments) &&
+    !Array.isArray(workspaceMatches) &&
+    !Array.isArray(workspaceItems) &&
+    !Array.isArray(workspaceResult);
+
   const invoicesList = Array.isArray(workspaceInvoices) ? workspaceInvoices : [];
   const paymentsList = Array.isArray(workspacePayments) ? workspacePayments : [];
   const matchesList = Array.isArray(workspaceMatches) ? workspaceMatches : [];
@@ -554,13 +562,15 @@ app.get("/api/dashboard", async (request, response) => {
     })),
   }));
   const confirmedPayments = new Set(paymentsList.map((payment) => payment.id));
+  const availableCurrencies = safeQuery(() => Promise.resolve(getEnabledBachsCryptoCurrencies()), []);
   response.json({
     invoices: invoiceRows,
     payments: paymentsList,
     matches: matchesList
       .filter((match) => match.status === "confirmed" && confirmedPayments.has(match.paymentId)),
-    availableInvoiceCurrencies: getEnabledBachsCryptoCurrencies(),
+    availableInvoiceCurrencies: availableCurrencies,
     workspace: workspaceRow || null,
+    degraded: allQueriesFailed,
   });
 });
 

@@ -66,4 +66,5 @@ export interface DashboardData {
   matches: Match[];
   availableInvoiceCurrencies: string[];
   workspace: Workspace | null;
+  degraded: boolean;
 }

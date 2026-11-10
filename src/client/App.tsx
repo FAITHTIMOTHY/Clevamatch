@@ -315,10 +315,22 @@ function DashboardApp() {
   const toastTimer = useRef<number | undefined>(undefined);
 
   const reload = useCallback(async () => {
-    const dashboard = await api<DashboardData>("/api/dashboard", {}, 30_000, 3);
-    setData(dashboard);
-    setWorkspace(dashboard.workspace);
-    if (user) setCachedData(user, dashboard.workspace, dashboard);
+    try {
+      const dashboard = await api<DashboardData>("/api/dashboard", {}, 30_000, 3);
+      setData(dashboard);
+      setWorkspace(dashboard.workspace);
+      if (user) setCachedData(user, dashboard.workspace, dashboard);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        clearCachedData();
+        setUser(null);
+        setWorkspace(null);
+        setData(null);
+        setAuthMode("login");
+        return;
+      }
+      throw error;
+    }
   }, [user]);
 
   useEffect(() => {
@@ -334,20 +346,33 @@ function DashboardApp() {
     }
 
     async function load() {
+      setLoading(true);
       try {
-        // Fetch session user and dashboard data in parallel — saves one
-        // full round trip to the remote database on every page load.
-        const [meResult, dashboardResult] = await Promise.all([
-          api<ApiMe>("/api/me", {}, 10_000, 3),
-          api<DashboardData>("/api/dashboard", {}, 30_000, 3),
-        ]);
+        // Fetch session user first — the dashboard shell needs this to show.
+        const meResult = await api<ApiMe>("/api/me", {}, 10_000, 3);
 
         if (!active) return;
         setUser(meResult.user);
         setWorkspace(meResult.workspace);
-        setData(dashboardResult);
-        setWorkspace(dashboardResult.workspace);
-        setCachedData(meResult.user, dashboardResult.workspace, dashboardResult);
+
+        // Dashboard data loads independently — if it fails, the shell still shows.
+        try {
+          const dashboardResult = await api<DashboardData>("/api/dashboard", {}, 30_000, 3);
+          if (!active) return;
+          setData(dashboardResult);
+          setWorkspace(dashboardResult.workspace);
+          setCachedData(meResult.user, dashboardResult.workspace, dashboardResult);
+        } catch (dashboardError) {
+          if (!active) return;
+          // Only show fatal error if we have no cached data to fall back on
+          if (!data) {
+            setFatalError(
+              dashboardError instanceof Error
+                ? dashboardError.message
+                : "Could not load your workspace.",
+            );
+          }
+        }
       } catch (error: unknown) {
         if (error instanceof ApiError && error.status === 401) {
           // Session invalid — clear cache and show login screen
@@ -357,7 +382,6 @@ function DashboardApp() {
           setData(null);
           return;
         }
-        // Only show fatal error if we have no cached data to fall back on
         if (active && !data) {
           setFatalError(error instanceof Error ? error.message : "Could not load your workspace.");
         }
@@ -461,8 +485,8 @@ function DashboardApp() {
     setWorkspace(result.workspace);
     setFatalError("");
     // Dashboard shell already shows immediately — fetch data in background.
-    void reload().catch((error) => {
-      setFatalError(error instanceof Error ? error.message : "Could not load your workspace.");
+    void reload().catch(() => {
+      // reload already sets fatalError or redirects to login on 401
     });
   }
 
