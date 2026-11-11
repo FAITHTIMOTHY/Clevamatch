@@ -514,7 +514,7 @@ function DashboardApp() {
       setUser(null);
       setWorkspace(null);
       setData(null);
-      setAuthMode("login");
+      setAuthMode(null);
       setFilter("all");
       showToast("You’ve been signed out.");
     } catch (error) {
